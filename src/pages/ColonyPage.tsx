@@ -1,9 +1,8 @@
 import { useState } from "react";
 import { Chronicle } from "../components/Chronicle";
 import { DwarfRoster } from "../components/DwarfRoster";
-import { jobLabel, production } from "../simulation";
+import { dailyResourceChange, jobLabel, production, workingAssignment } from "../simulation"; // Verwendet dieselbe Produktion und Verfuegbarkeit wie der Tageswechsel.
 import { useColony } from "../state/ColonyContext";
-import type { ResourceKey } from "../types";
 
 export function ColonyPage() {
   const {
@@ -16,23 +15,7 @@ export function ColonyPage() {
   const [destination, setDestination] = useState("crystal-cave");
   const [expeditionDwarf, setExpeditionDwarf] = useState("dwarf-3");
 
-  const dailyOutput = colony.dwarves.reduce<Record<ResourceKey, number>>(
-    (total, dwarf) => {
-      if (dwarf.assignment) {
-        const output = production[dwarf.assignment];
-        Object.entries(output).forEach(([resource, amount]) => {
-          total[resource as ResourceKey] += amount ?? 0;
-        });
-      }
-      return total;
-    },
-    {
-      wood: 0,
-      stone: 0,
-      food: -colony.dwarves.length,
-      tools: 0,
-    },
-  );
+  const dailyOutput = dailyResourceChange(colony); // Zeigt die tatsaechliche Tagesbilanz an.
 
   return (
     <div className="dashboard">
@@ -62,7 +45,7 @@ export function ColonyPage() {
                 <p>
                   {
                     colony.dwarves.filter(
-                      (dwarf) => dwarf.assignment === job,
+                      (dwarf) => workingAssignment(dwarf) === job, // Zaehlt nur Zwerge, die diesen Job gerade ausueben.
                     ).length
                   }{" "}
                   assigned

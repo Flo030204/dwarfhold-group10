@@ -14,6 +14,7 @@ export interface Dwarf {
 }
 
 export interface ColonyState { 
+    foodShortage?: { daysRemaining: number; acknowledged: boolean }; // Speichert die Frist und ob das Popup bestaetigt wurde.
     day: number; 
     resources: Resources; 
     dwarves: Dwarf[] 

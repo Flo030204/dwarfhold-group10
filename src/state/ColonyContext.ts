@@ -4,6 +4,7 @@ import type { Activity, ColonyState, JobType } from "../types";
 export interface ColonyContextValue {
   colony: ColonyState;
   paused: boolean;
+  acknowledgeFoodShortage: () => void; // Bestaetigt das Popup und gibt die Tagesuhr wieder frei.
   activities: Activity[];
   expeditionPending: boolean;
   togglePaused: () => void;

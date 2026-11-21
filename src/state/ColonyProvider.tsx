@@ -59,8 +59,11 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
     },
   ]);
 
+  const foodShortage = colony.foodShortage; // Liest den Stand des Essens-Countdowns.
+  const simulationStopped = paused || Boolean(foodShortage && (!foodShortage.acknowledged || foodShortage.daysRemaining === 0)); // Haelt die Uhr bei Pause, Warnung oder Game Over an.
+
   useEffect(() => {
-    if (paused) return;
+    if (simulationStopped) return; // Startet nur dann einen Timer, wenn die Kolonie weiterspielen kann.
 
     const timer = window.setInterval(
       () => setColony((current) => advanceDay(current)),
@@ -68,13 +71,15 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
     );
 
     return () => window.clearInterval(timer);
-  }, [paused]);
+  }, [simulationStopped]); // Beginnt nach OK mit einem vollen Spieltag.
 
   function assignDwarf(id: string, assignment: JobType) {
+    const dwarf = colony.dwarves.find((item) => item.id === id); // Sucht den Zwerg fuer Aufgabe und Chronik.
+    if (!dwarf || dwarf.status === "expedition") return; // Verhindert eine neue Aufgabe waehrend der Expedition.
     setColony((current) => ({
       ...current,
       dwarves: current.dwarves.map((dwarf) =>
-        dwarf.id === id
+        dwarf.id === id && dwarf.status !== "expedition" // Prueft die Verfuegbarkeit auch im aktuellen Zustand.
           ? {
               ...dwarf,
               assignment,
@@ -84,7 +89,6 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
       ),
     }));
 
-    const dwarf = colony.dwarves.find((item) => item.id === id);
     setActivities((current) =>
       [
         {
@@ -135,7 +139,7 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
 
   async function sendExpedition(dwarfId: string, destination: string) {
     const dwarf = colony.dwarves.find((item) => item.id === dwarfId);
-    if (!dwarf) return;
+    if (!dwarf || dwarf.status === "expedition" || expeditionPending) return; // Verhindert einen weiteren Aufbruch waehrend einer laufenden Expedition.
 
     setExpeditionPending(true);
     setColony((current) => ({
@@ -186,6 +190,14 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
         ].slice(0, 6),
       );
     } catch (error) {
+      setColony((current) => ({ // Holt den Zwerg auch bei einem fehlgeschlagenen Auftrag zurueck.
+        ...current, // Behaelt den aktuellen Tagesstand und die Vorraete bei.
+        dwarves: current.dwarves.map((item) => // Sucht den zurueckkehrenden Zwerg in der Liste.
+          item.id === dwarf.id // Aendert den Status nur fuer den betroffenen Zwerg.
+            ? { ...item, status: item.assignment ? "working" : "idle" } // Stellt seine bisherige Arbeit oder den Leerlauf wieder her.
+            : item, // Andere Zwerge behalten ihren Zustand.
+        ), // Schliesst die aktualisierte Zwergliste.
+      })); // Speichert die Rueckkehr fuer den naechsten Spieltag.
       setActivities((current) =>
         [
           {
@@ -207,7 +219,12 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
 
   const value: ColonyContextValue = {
     colony,
-    paused,
+    paused: simulationStopped, // Zeigt auch bei der Essenswarnung eine pausierte Simulation an.
+    acknowledgeFoodShortage: () => setColony((current) => { // Bestaetigt die Warnung im aktuellen Spielstand.
+      const shortage = current.foodShortage; // Liest die noch offene Warnung.
+      if (!shortage || shortage.acknowledged) return current; // Ignoriert eine wiederholte Bestaetigung.
+      return { ...current, foodShortage: { ...shortage, acknowledged: true } }; // Entsperrt die Uhr und laesst die Frist bestehen.
+    }), // Schliesst die Aktion des OK-Knopfs.
     activities,
     expeditionPending,
     togglePaused: () => setPaused((value) => !value),
