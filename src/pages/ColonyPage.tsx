@@ -119,6 +119,7 @@ export function ColonyPage() {
               : "The scout returns any equipped tool to storage before leaving."}
           </p>{/* Die laufende Reise oder die Werkzeugregel ist direkt am Aufbruch sichtbar. */}
           <p>Returning scouts remain unequipped. Travel continues while the day timer is paused.</p>
+          <p>Reloading cancels an expedition in progress. The scout returns without rewards.</p>{/* Erklaert vor dem Aufbruch, was beim Neuladen passiert. */}
         </section>
 
         <Chronicle activities={activities} />

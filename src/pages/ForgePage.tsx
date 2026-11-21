@@ -18,6 +18,7 @@ export function ForgePage() {
           <h2>Forge equipment</h2>
           <p>Each tool improves one matching job by one resource per day.</p>
           <p>Forging takes one game day. The smith's regular job pauses until then.</p>{/* Erklaert Dauer und Auswirkung auf die Tagesarbeit. */}
+          <p>Forge orders resume after reloading. Materials are paid only when the order starts.</p>{/* Erklaert die Wiederaufnahme des laufenden Auftrags. */}
           <label className="forge-smith">
             {/* Die Auswahl bestimmt, welcher Zwerg das Rezept ausfuehrt. */}
             Smith

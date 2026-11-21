@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react"; // Speichert vor dem naechsten sichtbaren Render und vor dem Reisestart.
 import { beginExpedition } from "../api";
 import { craftItem as applyCraftItem, equipTool as applyEquipTool, returnTool as applyReturnTool, isAvailable } from "../equipment"; // Nutzt dieselbe Verfuegbarkeit wie die Schmiede.
 import { finishExpeditionFailure, finishExpeditionSuccess, startExpedition } from "../expedition";
+import { decodeSave, encodeSave, saveKey, type ColonySave } from "../persistence"; // Liest und schreibt das versionierte Browserformat.
 import { advanceDay, jobLabel } from "../simulation";
 import type {
   Activity,
@@ -54,18 +55,41 @@ const initialState: ColonyState = {
   ],
 };
 
+const newGame: ColonySave = { // Definiert den Zustand fuer den ersten Start und fuer Restart.
+  colony: initialState, // Beginnt mit den bekannten Zwergen und Vorraeten.
+  paused: false, // Startet die Tagesuhr.
+  activities: [{ id: "welcome", day: initialState.day, message: "The forge fires are lit. Stonehome wakes." }], // Begruesst die neue Kolonie.
+}; // Schliesst den gemeinsamen Startzustand ab.
+
+function loadGame(): { save: ColonySave; notice: string } { // Laedt vor dem ersten Render und vor dem Start der Effekte.
+  try { // Der Browser kann selbst den Lesezugriff verweigern.
+    const raw = window.localStorage.getItem(saveKey); // Liest nur den Spielstand dieser Kolonie.
+    if (raw === null) return { save: newGame, notice: "" }; // Beim ersten Besuch ist noch kein Spielstand vorhanden.
+    const save = decodeSave(raw); // Prueft den Inhalt und schliesst eine unterbrochene Reise ab.
+    return save ? { save, notice: "" } : { save: newGame, notice: "The saved colony was invalid or incompatible. A fresh colony has been started." }; // Meldet einen unbrauchbaren Spielstand.
+  } catch { // Bei gesperrtem Speicher bleibt das Spiel nutzbar.
+    return { save: newGame, notice: "The browser could not read the saved colony. A fresh colony has been started." }; // Erklaert, warum eine neue Kolonie gestartet ist.
+  } // Schliesst die Behandlung von Lesefehlern ab.
+} // Schliesst das Laden ab.
+
 export function ColonyProvider({ children }: { children: ReactNode }) {
-  const [colony, setColony] = useState(initialState);
-  const [paused, setPaused] = useState(false);
+  const [loaded] = useState(loadGame); // Laedt den Spielstand nur bei Initialisierung der Sitzung.
+  const [colony, setColony] = useState(loaded.save.colony); // Startet mit der wiederhergestellten Kolonie.
+  const [paused, setPaused] = useState(loaded.save.paused); // Stellt eine manuell gesetzte Pause wieder her.
+  const [loadNotice, setLoadNotice] = useState(loaded.notice); // Haelt den Hinweis zu einem unlesbaren Spielstand sichtbar.
+  const [saveFailed, setSaveFailed] = useState(false); // Meldet fehlgeschlagenes Speichern trotz spielbarer Kolonie.
   const startedRequestId = useRef<string | null>(null); // Verhindert doppelte HTTP-Aufrufe fuer denselben angenommenen Auftrag.
   const loggedEventId = useRef<string | null>(null); // Verhindert doppelte Chronikeintraege bei erneutem Rendern.
-  const [activities, setActivities] = useState<Activity[]>([
-    {
-      id: "welcome",
-      day: 12,
-      message: "The forge fires are lit. Stonehome wakes.",
-    },
-  ]);
+  const [activities, setActivities] = useState<Activity[]>(loaded.save.activities); // Stellt auch die Chronik wieder her.
+
+  useLayoutEffect(() => { // Sichert Zustandsaenderungen vor dem sichtbaren Render und vor dem Expeditionsaufruf.
+    try { // Browser koennen Schreibzugriff verweigern oder ihr Speicherlimit erreichen.
+      window.localStorage.setItem(saveKey, encodeSave({ colony, paused, activities })); // Schreibt alle Daten gemeinsam in einen Eintrag.
+      setSaveFailed(false); // Entfernt die Fehlermeldung nach einem erfolgreichen Schreibversuch.
+    } catch { // Bei einem Fehler bleibt die aktuelle Sitzung spielbar.
+      setSaveFailed(true); // Macht sichtbar, dass der aktuelle Stand nicht gesichert werden konnte.
+    } // Schliesst die Fehlerbehandlung ab.
+  }, [colony, paused, activities]); // Speichert nur bei Aenderungen an den gespeicherten Daten.
 
   const foodShortage = colony.foodShortage; // Liest den Stand des Essens-Countdowns.
   const simulationStopped = paused || Boolean(foodShortage && (!foodShortage.acknowledged || foodShortage.daysRemaining === 0)); // Haelt die Uhr bei Pause, Warnung oder Game Over an.
@@ -85,7 +109,7 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
     const event = colony.lastExpeditionEvent;
     if (!event || loggedEventId.current === event.id) return; // Jede bestaetigte Reisemeldung erscheint hoechstens einmal.
     loggedEventId.current = event.id;
-    setActivities((current) => [event, ...current].slice(0, 6)); // Die Chronik folgt dem tatsaechlich geaenderten Spielzustand.
+    setActivities((current) => current.some((entry) => entry.id === event.id) ? current : [event, ...current].slice(0, 6)); // Die Chronik folgt dem tatsaechlich geaenderten Spielzustand.
   }, [colony.lastExpeditionEvent]);
 
   useEffect(() => {
@@ -146,7 +170,16 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
     setColony((current) => startExpedition(current, dwarfId, destination, requestId)); // Werkzeugrueckgabe und Aufbruch geschehen gemeinsam.
   }
 
+  function restartColony() { // Ersetzt den alten Lauf durch eine frische Kolonie.
+    setColony(newGame.colony); // Entfernt Hungerfrist, Schmiedeauftraege und aktive Reise.
+    setPaused(newGame.paused); // Startet die Tagesuhr wieder.
+    setActivities(newGame.activities); // Beginnt mit einer frischen Chronik.
+    setLoadNotice(""); // Entfernt Hinweise aus dem vorherigen Lauf.
+  } // Der Speichereffekt schreibt den frischen Zustand in denselben Browser-Eintrag.
+
   const value: ColonyContextValue = {
+    restartColony, // Stellt den Neustart fuer den Game-Over-Knopf bereit.
+    saveNotice: [loadNotice, saveFailed ? "Progress could not be saved in this browser." : ""].filter(Boolean).join(" "), // Verbindet Lade- und Schreibhinweise, falls beide vorliegen.
     colony,
     paused: simulationStopped, // Zeigt auch bei der Essenswarnung eine pausierte Simulation an.
     acknowledgeFoodShortage: () => setColony((current) => { // Bestaetigt die Warnung im aktuellen Spielstand.

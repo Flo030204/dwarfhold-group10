@@ -1,10 +1,15 @@
-import { NavLink, Outlet } from "react-router";
+import { NavLink, Outlet, useNavigate } from "react-router"; // Kehrt beim Neustart ohne Seitenreload zur Kolonie zurueck.
 import { foodGraceDays } from "../simulation"; // Verwendet dieselbe Frist wie die Simulation.
 import { ResourceBar } from "../components/ResourceBar";
 import { useColony } from "../state/ColonyContext";
 
 export function Layout() {
-  const { colony, paused, togglePaused, acknowledgeFoodShortage } = useColony(); // Liest den Spielstand und die Aktion fuer OK.
+  const { colony, paused, togglePaused, acknowledgeFoodShortage, restartColony, saveNotice } = useColony(); // Liest Spielstand, Neustart und Speicherhinweise.
+  const navigate = useNavigate(); // Wechselt beim Neustart auf die Kolonieseite.
+  function restart() { // Verbindet Neustart mit der Rueckkehr zur Startseite.
+    restartColony(); // Ersetzt den alten Spielstand durch Startwerte.
+    void navigate("/", { replace: true }); // Oeffnet die Kolonie im laufenden Spiel.
+  } // Schliesst die Aktion des Restart-Knopfs ab.
   const shortage = colony.foodShortage; // Liefert die verbleibende Zeit und den Status der Warnung.
 
   if (shortage?.daysRemaining === 0) { // Ersetzt die Spieloberflaeche nach Ablauf der Frist.
@@ -17,7 +22,8 @@ export function Layout() {
           {/* Der Text erklaert, warum die Kolonie verloren hat. */}
           <p>Stonehome ran out of food and could not restore its supply in time.</p>
           {/* Der Neustart oeffnet eine frische Kolonie auf der Startseite. */}
-          <button type="button" onClick={() => window.location.assign("/")}>Restart</button>
+          <button type="button" onClick={restart}>Restart</button>{/* Setzt zuerst den gespeicherten Lauf zurueck. */}
+          {saveNotice && <p role="status">{saveNotice}</p>}{/* Zeigt Speicherfehler auch bei Game Over. */}
         </section>{/* Schliesst den Inhalt des Endbildschirms ab. */}
       </main>
     ); // Gibt beim Spielende keinen Zugriff mehr auf die Spielaktionen.
@@ -78,6 +84,8 @@ export function Layout() {
           <button type="button" onClick={acknowledgeFoodShortage}>OK</button>
         </dialog>
       )}
+      <p className="food-rule">Progress is saved automatically in this browser. Game time does not pass while the page is closed.</p>{/* Erklaert Speicherort und Spieluhr. */}
+      {saveNotice && <p className="food-rule" role="status">{saveNotice}</p>}{/* Meldet einen fehlerhaften oder nicht speicherbaren Spielstand. */}
       <Outlet />
 
       <footer>

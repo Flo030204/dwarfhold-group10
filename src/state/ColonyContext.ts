@@ -4,6 +4,8 @@ import type { Activity, ColonyState, CraftItem, JobType, ToolType } from "../typ
 export interface ColonyContextValue {
   colony: ColonyState;
   paused: boolean;
+  restartColony: () => void; // Ersetzt den gespeicherten Lauf beim Neustart.
+  saveNotice: string; // Meldet, wenn der Browserstand nicht gelesen oder geschrieben werden konnte.
   acknowledgeFoodShortage: () => void; // Bestaetigt das Popup und gibt die Tagesuhr wieder frei.
   activities: Activity[];
   expeditionPending: boolean;
