@@ -1,10 +1,11 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { beginExpedition } from "../api";
-import { craftItem as applyCraftItem, equipTool as applyEquipTool, returnTool as applyReturnTool, toolDetails, weaponRecipe, type CraftItem } from "../equipment";
+import { craftItem as applyCraftItem, equipTool as applyEquipTool, returnTool as applyReturnTool, isAvailable, toolDetails } from "../equipment"; // Nutzt dieselbe Verfuegbarkeit wie die Schmiede.
 import { advanceDay, jobLabel } from "../simulation";
 import type {
   Activity,
   ColonyState,
+  CraftItem, // Beschreibt die Werkzeugart oder Waffe des Auftrags.
   JobType,
   ResourceKey,
   ToolType,
@@ -81,11 +82,11 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
 
   function assignDwarf(id: string, assignment: JobType) {
     const dwarf = colony.dwarves.find((item) => item.id === id); // Sucht den Zwerg fuer Aufgabe und Chronik.
-    if (!dwarf || dwarf.status === "expedition") return; // Verhindert eine neue Aufgabe waehrend der Expedition.
+    if (!dwarf || !isAvailable(dwarf)) return; // Beschaeftigte Zwerge koennen ihre Aufgabe nicht wechseln.
     setColony((current) => ({
       ...current,
       dwarves: current.dwarves.map((dwarf) =>
-        dwarf.id === id && dwarf.status !== "expedition" // Prueft die Verfuegbarkeit auch im aktuellen Zustand.
+        dwarf.id === id && isAvailable(dwarf) // Prueft die Verfuegbarkeit auch im aktuellen Zustand.
           ? {
               ...dwarf,
               assignment,
@@ -115,44 +116,19 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
     setColony((current) => applyReturnTool(current, dwarfId)); // Nur ein wirklich getragenes Werkzeug geht zurueck ins Lager.
   }
 
-  function craftItem(item: CraftItem) {
-    const cost = item === "weapon" ? weaponRecipe : toolDetails[item].cost; // Zeigt bei Materialmangel eine passende Meldung.
-    if (colony.resources.wood < cost.wood || colony.resources.stone < cost.stone) {
-      setActivities((current) => [
-        {
-          id: crypto.randomUUID(),
-          day: colony.day,
-          message: "The forge needs more materials.",
-          tone: "warning" as const,
-        },
-        ...current,
-      ]);
-      return;
-    }
-
-    setColony((current) => applyCraftItem(current, item)); // Die Rezeptfunktion prueft Material und Spielende erneut im aktuellen Zustand.
-    setActivities((current) =>
-      [
-        {
-          id: crypto.randomUUID(),
-          day: colony.day,
-          message: item === "weapon" ? "A weapon joins the stores." : `A ${toolDetails[item].label.toLowerCase()} joins the stores.`,
-          tone: "good" as const,
-        },
-        ...current,
-      ].slice(0, 6),
-    );
-  }
+  function craftItem(dwarfId: string, item: CraftItem) { // Gibt Schmied und Rezept an die Spielregel weiter.
+    setColony((current) => applyCraftItem(current, dwarfId, item)); // Prueft Zwerg und Materialien gemeinsam im neuesten Zustand.
+  } // Schliesst die Aktion der Schmiedeseite ab.
 
   async function sendExpedition(dwarfId: string, destination: string) {
     const dwarf = colony.dwarves.find((item) => item.id === dwarfId);
-    if (!dwarf || dwarf.status === "expedition" || expeditionPending) return; // Verhindert einen weiteren Aufbruch waehrend einer laufenden Expedition.
+    if (!dwarf || !isAvailable(dwarf) || expeditionPending) return; // Verhindert einen weiteren Aufbruch waehrend einer laufenden Expedition.
 
     setExpeditionPending(true);
     setColony((current) => ({
       ...current,
       dwarves: current.dwarves.map((item) =>
-        item.id === dwarf.id ? { ...item, status: "expedition" } : item,
+        item.id === dwarf.id && isAvailable(item) ? { ...item, status: "expedition" } : item, // Prueft die Verfuegbarkeit beim Aufbruch erneut.
       ),
     }));
     setActivities((current) => [

@@ -12,6 +12,10 @@
 .tool-control { display: block; margin-top: 8px; font: 600 10px Barlow Condensed; color: #bba27f; } /* Beschriftet die Ausruestung jedes Zwergs. */
 .tool-control select { margin-top: 4px; } /* Trennt Werkzeugwahl und Arbeitszuweisung optisch. */
 .dwarf p.tool-effect { color: #d9a34f; line-height: 1.3; margin-top: 5px; } /* Erklaert den aktuellen Bonus oder warum er ausbleibt. */
+.forge-smith { display: grid; gap: 4px; margin-top: 12px; } /* Gruppiert den Schmied mit seiner Auswahl. */
+.forge-smith select { background: #100e0b; color: #d8c8ae; border: 1px solid #4d3f30; padding: 5px; } /* Uebernimmt die Farben der anderen Auswahllisten. */
+.forge-orders ul { padding-inline-start: 20px; } /* Rueckt laufende Auftraege unter ihrer Ueberschrift ein. */
+.portrait i.crafting { background: #e2a84f; } /* Kennzeichnet einen schmiedenden Zwerg im Zwergregister. */
 .recipe-list { display: grid; gap: 8px; min-width: 290px; } /* Zeigt alle vier Rezepte uebersichtlich untereinander. */
 .recipe-list .recipe { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; text-align: right; } /* Richtet Name, Kosten und Aktion je Rezept aus. */
 .recipe-list button:disabled { opacity: .5; cursor: not-allowed; } /* Zeigt fehlende Materialien direkt am Rezept an. */

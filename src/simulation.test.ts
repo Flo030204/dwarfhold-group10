@@ -66,17 +66,35 @@ describe("equipment and recipes", () => {
     expect(equipTool(state, "d1", "axe")).toBe(state);
   });
 
-  it("crafts a specific tool and a stored weapon", () => {
-    const axe = craftItem(makeState(), "axe");
-    expect(axe.resources).toMatchObject({ wood: 7, stone: 8, weapons: 0 });
-    expect(axe.toolStock.axe).toBe(2);
-    const weapon = craftItem(axe, "weapon");
-    expect(weapon.resources).toMatchObject({ wood: 3, stone: 5, weapons: 1 });
-  });
+  it("delivers a tool or weapon at the next day change", () => { // Prueft Materialabzug, Wartezeit und Rueckkehr zur Arbeit fuer beide Rezepte.
+    const started = craftItem(makeState(), "d1", "axe"); // Der Holzfaeller startet einen Auftrag.
+    expect(started.resources).toMatchObject({ wood: 7, stone: 8, weapons: 0 }); // Die Zutaten werden beim Start abgezogen.
+    expect(started.toolStock.axe).toBe(1); // Das fertige Werkzeug liegt noch nicht im Lager.
+    expect(started.dwarves[0]).toMatchObject({ status: "crafting", forgeTask: { item: "axe", completesOnDay: 2 } }); // Der Zwerg ist bis Tag 2 belegt.
+    const finished = advanceDay(started); // Stellt das Werkzeug am Tageswechsel fertig.
+    expect(finished.resources).toMatchObject({ wood: 7, food: 4 }); // Beim Schmieden gibt es keinen Holzertrag, aber der Zwerg isst.
+    expect(finished.toolStock.axe).toBe(2); // Das fertiggestellte Werkzeug geht ins freie Lager.
+    expect(finished.dwarves[0]).toMatchObject({ status: "working", assignment: "woodcutting" }); // Der Zwerg nimmt seinen vorherigen Job wieder auf.
+    expect(finished.dwarves[0].forgeTask).toBeUndefined(); // Der erledigte Auftrag kann nichts mehr ausliefern.
+    const weapon = craftItem(finished, "d1", "weapon"); // Prueft das Waffenrezept mit demselben Zwerg.
+    expect(weapon.resources).toMatchObject({ wood: 5, stone: 4, weapons: 0 }); // Waffen verbrauchen zwei Holz und vier Stein beim Start.
+    const armed = advanceDay(weapon); // Legt die fertige Waffe am naechsten Tag ins Lager.
+    expect(armed.resources.weapons).toBe(1); // Die Waffe gehoert der Kolonie.
+    expect(advanceDay(armed).resources.weapons).toBe(1); // Weitere Tageswechsel liefern dieselbe Waffe nicht noch einmal.
+  }); // Schliesst die Pruefung beider Rezeptarten ab.
 
-  it("does not craft when either material is missing", () => {
-    const state = makeState();
-    state.resources.stone = 0;
-    expect(craftItem(state, "pickaxe")).toBe(state); // Verhindert den bisherigen negativen Steinbestand.
-  });
+  it("leaves resources and dwarves unchanged on invalid attempts", () => { // Prueft fehlende Zutaten und ungueltige Schmiede.
+    const state = makeState(); // Erstellt einen Zustand mit einem verfuegbaren Zwerg.
+    expect(craftItem(state, "missing", "pickaxe")).toBe(state); // Ein unbekannter Zwerg kann keinen Auftrag starten.
+    const busy = craftItem(state, "d1", "axe"); // Belegt den Zwerg mit einem ersten Auftrag.
+    expect(craftItem(busy, "d1", "pickaxe")).toBe(busy); // Derselbe Zwerg kann nicht parallel noch etwas schmieden.
+    state.dwarves[0].status = "expedition"; // Markiert den Zwerg als unterwegs.
+    expect(craftItem(state, "d1", "pickaxe")).toBe(state); // Ein reisender Zwerg bleibt auf Expedition.
+    state.dwarves[0].status = "working"; // Gibt den Zwerg wieder fuer die Materialtests frei.
+    state.resources.stone = 0; // Entfernt nur den Stein aus dem Vorrat.
+    expect(craftItem(state, "d1", "pickaxe")).toBe(state); // Fehlender Stein verhindert den Start.
+    state.resources.stone = 10; // Stellt den Steinvorrat wieder her.
+    state.resources.wood = 0; // Entfernt stattdessen das Holz.
+    expect(craftItem(state, "d1", "weapon")).toBe(state); // Fehlendes Holz verhindert ebenfalls den Start.
+  }); // Schliesst die Pruefung fehlgeschlagener Auftraege ab.
 });

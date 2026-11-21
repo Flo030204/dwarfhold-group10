@@ -1,5 +1,5 @@
 import { jobLabel } from "../simulation";
-import { toolDetails, toolTypes } from "../equipment";
+import { isAvailable, toolDetails, toolTypes } from "../equipment"; // Nutzt fuer Aufgaben und Werkzeug dieselbe Verfuegbarkeit wie die Schmiede.
 import type { Dwarf, JobType, ToolStock, ToolType } from "../types";
 
 const jobs: Exclude<JobType, null>[] = [
@@ -58,7 +58,7 @@ export function DwarfRoster({ dwarves, toolStock, onAssign, onEquip, onReturn }:
 
                 <select
                   value={dwarf.assignment ?? ""}
-                  disabled={isAway}
+                  disabled={!isAvailable(dwarf)} // Verhindert Aenderungen waehrend einer Expedition oder eines Schmiedeauftrags.
                   onChange={(event) =>
                     onAssign(
                       dwarf.id,
@@ -78,7 +78,7 @@ export function DwarfRoster({ dwarves, toolStock, onAssign, onEquip, onReturn }:
                   <select
                     aria-label={`${dwarf.name} tool`}
                     value={dwarf.equippedTool ?? ""}
-                    disabled={isAway}
+                    disabled={!isAvailable(dwarf)} // Verhindert Aenderungen waehrend einer Expedition oder eines Schmiedeauftrags.
                     onChange={(event) => event.target.value
                       ? onEquip(dwarf.id, event.target.value as ToolType)
                       : onReturn(dwarf.id)} // Ein leerer Wert legt das Werkzeug zurueck.

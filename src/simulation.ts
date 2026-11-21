@@ -1,5 +1,5 @@
 import type { ColonyState, Dwarf, JobType, Resources } from "./types"; // Dwarf wird fuer die Pruefung der Verfuegbarkeit gebraucht.
-import { toolDetails } from "./equipment";
+import { completeForgeTasks, toolDetails } from "./equipment"; // Die Schmiede liefert ihre Produkte am Ende des Tageswechsels aus.
 
 export const production: Record<Exclude<JobType, null>, Partial<Resources>> = {
   woodcutting: { wood: 3 }, mining: { stone: 2 }, farming: { food: 4 },
@@ -44,7 +44,7 @@ export function advanceDay(state: ColonyState): ColonyState { // Wendet die Tage
     acknowledged: shortage?.acknowledged ?? false, // Verlangt beim Beginn jeder neuen Knappheit ein OK.
   }; // Schliesst die Daten der aktuellen Knappheit.
 
-  return { ...state, day: state.day + 1, resources, foodShortage }; // Gibt den neuen Spieltag inklusive Vorrat und Frist zurueck.
+  return completeForgeTasks({ ...state, day: state.day + 1, resources, foodShortage }); // Liefert erst nach der Tagesproduktion faellige Schmiedeauftraege aus.
 }
 
 export const jobLabel = (job: JobType) => job ? ({ 

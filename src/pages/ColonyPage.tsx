@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Chronicle } from "../components/Chronicle";
 import { DwarfRoster } from "../components/DwarfRoster";
-import { toolDetails } from "../equipment";
+import { isAvailable, toolDetails } from "../equipment"; // Erkennt, welche Zwerge als Scout aufbrechen koennen.
 import { dailyResourceChange, jobLabel, production, workingAssignment } from "../simulation"; // Verwendet dieselbe Produktion und Verfuegbarkeit wie der Tageswechsel.
 import { useColony } from "../state/ColonyContext";
 
@@ -88,8 +88,8 @@ export function ColonyPage() {
               onChange={(event) => setExpeditionDwarf(event.target.value)}
             >
               {colony.dwarves.map((dwarf) => (
-                <option key={dwarf.id} value={dwarf.id}>
-                  {dwarf.name}
+                <option key={dwarf.id} value={dwarf.id} disabled={!isAvailable(dwarf)}>
+                  {dwarf.name}{!isAvailable(dwarf) ? ` (${dwarf.status})` : ""}{/* Zeigt den Grund, wenn ein Zwerg nicht aufbrechen kann. */}
                 </option>
               ))}
             </select>
@@ -108,7 +108,7 @@ export function ColonyPage() {
           </label>
 
           <button
-            disabled={expeditionPending}
+            disabled={expeditionPending || !colony.dwarves.some((dwarf) => dwarf.id === expeditionDwarf && isAvailable(dwarf))} // Sperrt den Aufbruch auch dann, wenn der bereits gewaehlte Zwerg gerade schmiedet.
             onClick={() => sendExpedition(expeditionDwarf, destination)}
           >
             {expeditionPending ? "Beyond the gate…" : "Send expedition"}

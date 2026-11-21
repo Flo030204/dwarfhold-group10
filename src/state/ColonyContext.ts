@@ -1,6 +1,5 @@
 import { createContext, useContext } from "react";
-import type { Activity, ColonyState, JobType, ToolType } from "../types";
-import type { CraftItem } from "../equipment";
+import type { Activity, ColonyState, CraftItem, JobType, ToolType } from "../types"; // Uebernimmt den Rezepttyp aus dem gemeinsamen Spielzustand.
 
 export interface ColonyContextValue {
   colony: ColonyState;
@@ -12,7 +11,7 @@ export interface ColonyContextValue {
   assignDwarf: (id: string, assignment: JobType) => void;
   equipTool: (dwarfId: string, tool: ToolType) => void; // Ruft die Bestandspruefung beim Ausruesten auf.
   returnTool: (dwarfId: string) => void; // Legt das getragene Werkzeug wieder ins Lager.
-  craftItem: (item: CraftItem) => void; // Schmiedet eine bestimmte Werkzeugart oder eine Waffe.
+  craftItem: (dwarfId: string, item: CraftItem) => void; // Startet das Rezept mit dem ausgewaehlten Zwerg.
   sendExpedition: (dwarfId: string, destination: string) => Promise<void>;
 }
 
