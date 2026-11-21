@@ -12,7 +12,7 @@ export interface ColonyContextValue {
   equipTool: (dwarfId: string, tool: ToolType) => void; // Ruft die Bestandspruefung beim Ausruesten auf.
   returnTool: (dwarfId: string) => void; // Legt das getragene Werkzeug wieder ins Lager.
   craftItem: (dwarfId: string, item: CraftItem) => void; // Startet das Rezept mit dem ausgewaehlten Zwerg.
-  sendExpedition: (dwarfId: string, destination: string) => Promise<void>;
+  sendExpedition: (dwarfId: string, destination: string) => void; // Der Aufbruch speichert zuerst den Auftrag; die API startet danach.
 }
 
 export const ColonyContext = createContext<ColonyContextValue | null>(null);

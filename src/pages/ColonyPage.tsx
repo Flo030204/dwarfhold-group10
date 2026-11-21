@@ -113,10 +113,12 @@ export function ColonyPage() {
           >
             {expeditionPending ? "Beyond the gate…" : "Send expedition"}
           </button>
-          <p>
-            A result returns in one request. The selected dwarf is unavailable
-            while travelling.
-          </p>
+          <p role="status">
+            {colony.activeExpedition
+              ? `${colony.dwarves.find((dwarf) => dwarf.id === colony.activeExpedition?.dwarfId)?.name ?? "The scout"} is travelling to ${colony.activeExpedition.destination.replaceAll("-", " ")}.`
+              : "The scout returns any equipped tool to storage before leaving."}
+          </p>{/* Die laufende Reise oder die Werkzeugregel ist direkt am Aufbruch sichtbar. */}
+          <p>Returning scouts remain unequipped. Travel continues while the day timer is paused.</p>
         </section>
 
         <Chronicle activities={activities} />

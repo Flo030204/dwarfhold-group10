@@ -1,13 +1,13 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { beginExpedition } from "../api";
-import { craftItem as applyCraftItem, equipTool as applyEquipTool, returnTool as applyReturnTool, isAvailable, toolDetails } from "../equipment"; // Nutzt dieselbe Verfuegbarkeit wie die Schmiede.
+import { craftItem as applyCraftItem, equipTool as applyEquipTool, returnTool as applyReturnTool, isAvailable } from "../equipment"; // Nutzt dieselbe Verfuegbarkeit wie die Schmiede.
+import { finishExpeditionFailure, finishExpeditionSuccess, startExpedition } from "../expedition";
 import { advanceDay, jobLabel } from "../simulation";
 import type {
   Activity,
   ColonyState,
   CraftItem, // Beschreibt die Werkzeugart oder Waffe des Auftrags.
   JobType,
-  ResourceKey,
   ToolType,
 } from "../types";
 import { ColonyContext, type ColonyContextValue } from "./ColonyContext";
@@ -57,7 +57,8 @@ const initialState: ColonyState = {
 export function ColonyProvider({ children }: { children: ReactNode }) {
   const [colony, setColony] = useState(initialState);
   const [paused, setPaused] = useState(false);
-  const [expeditionPending, setExpeditionPending] = useState(false);
+  const startedRequestId = useRef<string | null>(null); // Verhindert doppelte HTTP-Aufrufe fuer denselben angenommenen Auftrag.
+  const loggedEventId = useRef<string | null>(null); // Verhindert doppelte Chronikeintraege bei erneutem Rendern.
   const [activities, setActivities] = useState<Activity[]>([
     {
       id: "welcome",
@@ -79,6 +80,26 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
 
     return () => window.clearInterval(timer);
   }, [simulationStopped]); // Beginnt nach OK mit einem vollen Spieltag.
+
+  useEffect(() => {
+    const event = colony.lastExpeditionEvent;
+    if (!event || loggedEventId.current === event.id) return; // Jede bestaetigte Reisemeldung erscheint hoechstens einmal.
+    loggedEventId.current = event.id;
+    setActivities((current) => [event, ...current].slice(0, 6)); // Die Chronik folgt dem tatsaechlich geaenderten Spielzustand.
+  }, [colony.lastExpeditionEvent]);
+
+  useEffect(() => {
+    const active = colony.activeExpedition;
+    if (!active || startedRequestId.current === active.requestId) return; // Erst ein angenommener Auftrag startet das Netzwerk, nie ein abgewiesener Klick.
+    startedRequestId.current = active.requestId;
+
+    void beginExpedition(active.dwarfId, active.destination)
+      .then((result) => setColony((current) => finishExpeditionSuccess(current, active.requestId, result))) // Nur die noch aktive Kennung darf Beute vergeben.
+      .catch((error: unknown) => setColony((current) => finishExpeditionFailure(
+        current, active.requestId,
+        error instanceof Error ? error.message : "The expedition was lost from view.",
+      ))); // Fehler und Zeitlimit geben nur den zugehoerigen Scout wieder frei.
+  }, [colony.activeExpedition]);
 
   function assignDwarf(id: string, assignment: JobType) {
     const dwarf = colony.dwarves.find((item) => item.id === id); // Sucht den Zwerg fuer Aufgabe und Chronik.
@@ -120,87 +141,9 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
     setColony((current) => applyCraftItem(current, dwarfId, item)); // Prueft Zwerg und Materialien gemeinsam im neuesten Zustand.
   } // Schliesst die Aktion der Schmiedeseite ab.
 
-  async function sendExpedition(dwarfId: string, destination: string) {
-    const dwarf = colony.dwarves.find((item) => item.id === dwarfId);
-    if (!dwarf || !isAvailable(dwarf) || expeditionPending) return; // Verhindert einen weiteren Aufbruch waehrend einer laufenden Expedition.
-
-    setExpeditionPending(true);
-    setColony((current) => ({
-      ...current,
-      dwarves: current.dwarves.map((item) =>
-        item.id === dwarf.id && isAvailable(item) ? { ...item, status: "expedition" } : item, // Prueft die Verfuegbarkeit beim Aufbruch erneut.
-      ),
-    }));
-    setActivities((current) => [
-      {
-        id: crypto.randomUUID(),
-        day: colony.day,
-        message: `${dwarf.name} departed for ${destination.replace("-", " ")}.`,
-      },
-      ...current,
-    ]);
-
-    try {
-      const result = await beginExpedition(dwarf.id, destination);
-
-      setColony((current) => ({
-        ...current,
-        resources: Object.entries(result.rewards).reduce(
-          (all, [key, amount]) => ({
-            ...all,
-            [key]: all[key as ResourceKey] + (amount ?? 0),
-          }),
-          current.resources,
-        ),
-        toolStock: result.toolReward
-          ? { ...current.toolStock, [result.toolReward]: current.toolStock[result.toolReward] + 1 } // Die zufaellig geloste Werkzeugart geht einmal ins freie Lager.
-          : current.toolStock,
-        dwarves: current.dwarves.map((item) =>
-          item.id === dwarf.id
-            ? {
-                ...item,
-                status: item.assignment ? "working" : "idle",
-              }
-            : item,
-        ),
-      }));
-      setActivities((current) =>
-        [
-          {
-            id: result.expeditionId,
-            day: colony.day,
-            message: result.toolReward ? `${result.message} Found: ${toolDetails[result.toolReward].label}.` : result.message, // Nennt die konkrete Beute in der Chronik.
-            tone: "good" as const,
-          },
-          ...current,
-        ].slice(0, 6),
-      );
-    } catch (error) {
-      setColony((current) => ({ // Holt den Zwerg auch bei einem fehlgeschlagenen Auftrag zurueck.
-        ...current, // Behaelt den aktuellen Tagesstand und die Vorraete bei.
-        dwarves: current.dwarves.map((item) => // Sucht den zurueckkehrenden Zwerg in der Liste.
-          item.id === dwarf.id // Aendert den Status nur fuer den betroffenen Zwerg.
-            ? { ...item, status: item.assignment ? "working" : "idle" } // Stellt seine bisherige Arbeit oder den Leerlauf wieder her.
-            : item, // Andere Zwerge behalten ihren Zustand.
-        ), // Schliesst die aktualisierte Zwergliste.
-      })); // Speichert die Rueckkehr fuer den naechsten Spieltag.
-      setActivities((current) =>
-        [
-          {
-            id: crypto.randomUUID(),
-            day: colony.day,
-            message:
-              error instanceof Error
-                ? error.message
-                : "The expedition was lost from view.",
-            tone: "warning" as const,
-          },
-          ...current,
-        ].slice(0, 6),
-      );
-    }
-
-    setExpeditionPending(false);
+  function sendExpedition(dwarfId: string, destination: string) {
+    const requestId = crypto.randomUUID(); // Ein schneller zweiter Klick erhaelt eine andere Kennung und wird im aktuellen Zustand abgewiesen.
+    setColony((current) => startExpedition(current, dwarfId, destination, requestId)); // Werkzeugrueckgabe und Aufbruch geschehen gemeinsam.
   }
 
   const value: ColonyContextValue = {
@@ -212,7 +155,7 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
       return { ...current, foodShortage: { ...shortage, acknowledged: true } }; // Entsperrt die Uhr und laesst die Frist bestehen.
     }), // Schliesst die Aktion des OK-Knopfs.
     activities,
-    expeditionPending,
+    expeditionPending: Boolean(colony.activeExpedition), // Die Schaltflaeche und der Scout beziehen sich auf denselben Auftrag.
     togglePaused: () => setPaused((value) => !value),
     assignDwarf,
     equipTool,

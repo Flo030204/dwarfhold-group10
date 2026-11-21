@@ -31,24 +31,24 @@ The shared inventory contains:
 - **Axes**, **pickaxes**, and **mushroom sickles**, crafted or discovered on expeditions. The stock display counts only unequipped tools.
 - **Weapons**, crafted at the forge and stored for future defense.
 
-Each dwarf can carry one tool. An axe adds one wood per day while woodcutting, a pickaxe adds one stone per day while mining, and a mushroom sickle adds one food per day while farming. A tool used for a different job gives no bonus. A travelling dwarf keeps their tool but produces nothing while away. Tools have no durability rule.
+Each dwarf can carry one tool. An axe adds one wood per day while woodcutting, a pickaxe adds one stone per day while mining, and a mushroom sickle adds one food per day while farming. A tool used for a different job gives no bonus. Before an expedition, the scout returns any equipped tool to the shared stock and comes back unequipped. Tools have no durability rule.
 
 ### Ember Forge
 
-The forge currently performs an immediate crafting action for each recipe:
+The forge offers these recipes:
 
 ```text
 3 wood + 2 stone -> 1 axe
 2 wood + 3 stone -> 1 pickaxe
 2 wood + 1 stone -> 1 mushroom sickle
-4 wood + 3 stone -> 1 weapon
+2 wood + 4 stone -> 1 weapon
 ```
 
-Open the **Forge** page and choose a recipe. A successful craft removes its materials, adds that item to the shared inventory, and records the result in the Hold Chronicle. The current immediate action still needs the worker and time rules from D3.
+Open the **Forge** page, choose a recipe and an available dwarf. The materials are deducted when the task begins, and the item enters the shared inventory at the next day change. The dwarf cannot work locally or travel while crafting.
 
 ### Expeditions
 
-The expedition panel lets you select a dwarf and one destination. Sending an expedition starts an asynchronous request to the local API. The selected dwarf is shown as away while the request is in progress. A successful result returns the dwarf and adds the destination's rewards to the inventory and an unsuccessful result is reported in the chronicle.
+The expedition panel lets you select an available dwarf and one destination. Sending an expedition returns any equipped tool to storage, then starts an asynchronous request to the local API. The dwarf is unavailable while travelling and returns without a tool. A successful result adds the destination's rewards once; a failed or timed-out request returns the dwarf without rewards. Only one expedition runs at a time. Travel continues while the day timer is paused.
 
 The starter destinations:
 
@@ -108,6 +108,7 @@ Destinations `crystal-cave` and `old-mine` have rewards. The Crystal Cave tool t
 - `src/pages/` contains the shared layout, colony page, and forge page.
 - `src/simulation.ts` contains the production table and daily simulation transition.
 - `src/equipment.ts` contains tool compatibility, recipes, and inventory-safe equipment actions.
+- `src/expedition.ts` contains the checked departure, success, and failure transitions.
 - `src/types.ts` defines workers, jobs, statuses, resources, and activity records.
 - `src/api.ts` contains the expedition HTTP request.
 - `src/components/` contains the roster, resource display, and shared chronicle.

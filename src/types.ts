@@ -23,6 +23,8 @@ export interface ColonyState {
     day: number; 
     resources: Resources; 
     toolStock: ToolStock; // Ausgeruestete Werkzeuge liegen nicht gleichzeitig im Lager.
+    activeExpedition?: { requestId: string; dwarfId: string; destination: string }; // Nur ein angenommener Reiseauftrag darf gleichzeitig laufen.
+    lastExpeditionEvent?: Activity; // Haelt die letzte bestaetigte Reisemeldung fuer die Chronik fest.
     dwarves: Dwarf[] 
 }
 
