@@ -1,5 +1,6 @@
 import { createContext, useContext } from "react";
-import type { Activity, ColonyState, JobType } from "../types";
+import type { Activity, ColonyState, JobType, ToolType } from "../types";
+import type { CraftItem } from "../equipment";
 
 export interface ColonyContextValue {
   colony: ColonyState;
@@ -9,7 +10,9 @@ export interface ColonyContextValue {
   expeditionPending: boolean;
   togglePaused: () => void;
   assignDwarf: (id: string, assignment: JobType) => void;
-  craftTool: () => void;
+  equipTool: (dwarfId: string, tool: ToolType) => void; // Ruft die Bestandspruefung beim Ausruesten auf.
+  returnTool: (dwarfId: string) => void; // Legt das getragene Werkzeug wieder ins Lager.
+  craftItem: (item: CraftItem) => void; // Schmiedet eine bestimmte Werkzeugart oder eine Waffe.
   sendExpedition: (dwarfId: string, destination: string) => Promise<void>;
 }
 

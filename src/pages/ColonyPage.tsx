@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Chronicle } from "../components/Chronicle";
 import { DwarfRoster } from "../components/DwarfRoster";
+import { toolDetails } from "../equipment";
 import { dailyResourceChange, jobLabel, production, workingAssignment } from "../simulation"; // Verwendet dieselbe Produktion und Verfuegbarkeit wie der Tageswechsel.
 import { useColony } from "../state/ColonyContext";
 
@@ -10,6 +11,8 @@ export function ColonyPage() {
     activities,
     expeditionPending,
     assignDwarf,
+    equipTool,
+    returnTool,
     sendExpedition,
   } = useColony();
   const [destination, setDestination] = useState("crystal-cave");
@@ -19,7 +22,7 @@ export function ColonyPage() {
 
   return (
     <div className="dashboard">
-      <DwarfRoster dwarves={colony.dwarves} onAssign={assignDwarf} />
+      <DwarfRoster dwarves={colony.dwarves} toolStock={colony.toolStock} onAssign={assignDwarf} onEquip={equipTool} onReturn={returnTool} />
 
       <section className="center-stack">
         <section className="panel production">
@@ -50,7 +53,10 @@ export function ColonyPage() {
                   }{" "}
                   assigned
                 </p>
-                <strong>+{Object.values(production[job])[0]} / day</strong>
+                <strong>+{colony.dwarves
+                  .filter((dwarf) => workingAssignment(dwarf) === job)
+                  .reduce((sum, dwarf) => sum + (Object.values(production[job])[0] ?? 0)
+                    + (dwarf.equippedTool && toolDetails[dwarf.equippedTool].job === job ? 1 : 0), 0)} / day</strong>{/* Zeigt den wirklichen Gesamtertrag inklusive passender Werkzeuge. */}
               </article>
             ))}
           </div>

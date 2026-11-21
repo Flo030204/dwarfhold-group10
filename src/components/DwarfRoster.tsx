@@ -1,5 +1,6 @@
 import { jobLabel } from "../simulation";
-import type { Dwarf, JobType } from "../types";
+import { toolDetails, toolTypes } from "../equipment";
+import type { Dwarf, JobType, ToolStock, ToolType } from "../types";
 
 const jobs: Exclude<JobType, null>[] = [
   "woodcutting",
@@ -9,10 +10,13 @@ const jobs: Exclude<JobType, null>[] = [
 
 interface Props {
   dwarves: Dwarf[];
+  toolStock: ToolStock;
   onAssign: (id: string, job: JobType) => void;
+  onEquip: (id: string, tool: ToolType) => void;
+  onReturn: (id: string) => void;
 }
 
-export function DwarfRoster({ dwarves, onAssign }: Props) {
+export function DwarfRoster({ dwarves, toolStock, onAssign, onEquip, onReturn }: Props) {
   const presentDwarves = dwarves.filter(
     (dwarf) => dwarf.status !== "expedition",
   ).length;
@@ -69,6 +73,31 @@ export function DwarfRoster({ dwarves, onAssign }: Props) {
                     </option>
                   ))}
                 </select>
+                <label className="tool-control">
+                  Tool
+                  <select
+                    aria-label={`${dwarf.name} tool`}
+                    value={dwarf.equippedTool ?? ""}
+                    disabled={isAway}
+                    onChange={(event) => event.target.value
+                      ? onEquip(dwarf.id, event.target.value as ToolType)
+                      : onReturn(dwarf.id)} // Ein leerer Wert legt das Werkzeug zurueck.
+                  >
+                    <option value="">No tool</option>
+                    {toolTypes.map((tool) => (
+                      <option key={tool} value={tool} disabled={toolStock[tool] === 0 && dwarf.equippedTool !== tool}>
+                        {toolDetails[tool].label} ({toolStock[tool]} free)
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                {dwarf.equippedTool && (
+                  <p className="tool-effect">
+                    {dwarf.status === "working" && dwarf.assignment === toolDetails[dwarf.equippedTool].job
+                      ? `+1 ${jobLabel(dwarf.assignment)} output per day`
+                      : `No bonus: ${toolDetails[dwarf.equippedTool].label} helps ${jobLabel(toolDetails[dwarf.equippedTool].job)}`}
+                  </p>
+                )}{/* Die Wirkung eines passenden oder unpassenden Werkzeugs bleibt sichtbar. */}
               </div>
 
               <span className="status">{dwarf.status}</span>

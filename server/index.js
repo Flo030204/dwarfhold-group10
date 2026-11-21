@@ -1,12 +1,13 @@
 import cors from "cors";
 import express from "express";
+import { randomTool } from "./toolReward.js";
 
 const app = express();
 const port = Number(process.env.PORT ?? 4200);
 let expeditionNumber = 16;
 
 const outcomes = {
-  "crystal-cave": { rewards: { stone: 8, tools: 1 }, message: "The scout found a crystal seam and an abandoned mason's tool." },
+  "crystal-cave": { rewards: { stone: 8 }, message: "The scout found a crystal seam and an abandoned tool." },
   "old-mine": { rewards: { stone: 12, wood: 2 }, message: "The old mine still holds good stone and usable supports." },
 };
 
@@ -34,7 +35,8 @@ app.post("/api/expeditions", (req, res) => {
     
     expeditionNumber += 1;
     
-    res.json({ expeditionId: `exp-${expeditionNumber}`, status: "completed", ...outcome });
+    const toolReward = destination === "crystal-cave" ? randomTool() : undefined; // Jeder Erfolg lost genau eine Werkzeugart aus.
+    res.json({ expeditionId: `exp-${expeditionNumber}`, status: "completed", ...outcome, ...(toolReward ? { toolReward } : {}) });
   }, latency);
 });
 

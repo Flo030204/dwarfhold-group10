@@ -28,19 +28,23 @@ The shared inventory contains:
 - **Wood**, gathered by woodcutters.
 - **Stone**, gathered by miners.
 - **Food**, gathered by farmers and consumed by the company.
-- **Tools**, produced at the forge or discovered on expeditions.
+- **Axes**, **pickaxes**, and **mushroom sickles**, crafted or discovered on expeditions. The stock display counts only unequipped tools.
+- **Weapons**, crafted at the forge and stored for future defense.
 
-The starter does not yet give stored tools an additional production bonus or durability rule. They provide a small production-chain foundation that may be expanded by later requirements.
+Each dwarf can carry one tool. An axe adds one wood per day while woodcutting, a pickaxe adds one stone per day while mining, and a mushroom sickle adds one food per day while farming. A tool used for a different job gives no bonus. A travelling dwarf keeps their tool but produces nothing while away. Tools have no durability rule.
 
 ### Ember Forge
 
-The forge performs an immediate crafting action:
+The forge currently performs an immediate crafting action for each recipe:
 
 ```text
-3 wood + 2 stone -> 1 tool
+3 wood + 2 stone -> 1 axe
+2 wood + 3 stone -> 1 pickaxe
+2 wood + 1 stone -> 1 mushroom sickle
+4 wood + 3 stone -> 1 weapon
 ```
 
-Open the **Forge** page and press **Forge tool** to attempt the recipe. A successful craft removes the materials, adds a tool to the shared inventory, and records the result in the Hold Chronicle. Forging is separate from the automatic eight-second job production.
+Open the **Forge** page and choose a recipe. A successful craft removes its materials, adds that item to the shared inventory, and records the result in the Hold Chronicle. The current immediate action still needs the worker and time rules from D3.
 
 ### Expeditions
 
@@ -50,7 +54,7 @@ The starter destinations:
 
 | Destination | Current outcome |
 |---|---|
-| Crystal Cave | 8 stone and 1 tool |
+| Crystal Cave | 8 stone and one randomly selected axe, pickaxe, or mushroom sickle |
 | The Old Mine | 12 stone and 2 wood |
 | Blocked Pass | A predictable failed expedition |
 
@@ -61,9 +65,9 @@ The short delay is deliberate, so that expedition behavior provides a realistic 
 - Three named dwarves with assignments, status, and optional specialization.
 - Woodcutting, mining, and farming jobs.
 - An automatic eight-second simulation tick with pause/resume.
-- Shared wood, stone, food, and tool inventories.
+- Shared wood, stone, food, weapon, and typed tool inventories.
 - Daily food consumption.
-- One interactive forge recipe.
+- Four forge recipes and a job-specific +1 production bonus for equipped tools.
 - Separate colony and forge routes sharing the same running simulation.
 - A delayed local expedition API with success and failure outcomes.
 - A recent-activity chronicle.
@@ -94,7 +98,7 @@ The web app runs at `http://localhost:5174`; its API runs at `http://localhost:4
 - `GET /api/health`
 - `POST /api/expeditions` with `{ "dwarfId": "dwarf-2", "destination": "crystal-cave" }`
 
-Destinations `crystal-cave` and `old-mine` have rewards. `blocked-pass` is the predictable failure case. Add `?fail=true` to force failure or `?latency=2500` to control delay. The delay is default to two seconds.
+Destinations `crystal-cave` and `old-mine` have rewards. The Crystal Cave tool type is random on each success. `blocked-pass` is the predictable failure case. Add `?fail=true` to force failure or `?latency=2500` to control delay. The default delay is two seconds.
 
 ## Project orientation
 
@@ -103,6 +107,7 @@ Destinations `crystal-cave` and `old-mine` have rewards. `blocked-pass` is the p
 - `src/state/ColonyContext.ts` exposes the shared state through `useColony`.
 - `src/pages/` contains the shared layout, colony page, and forge page.
 - `src/simulation.ts` contains the production table and daily simulation transition.
+- `src/equipment.ts` contains tool compatibility, recipes, and inventory-safe equipment actions.
 - `src/types.ts` defines workers, jobs, statuses, resources, and activity records.
 - `src/api.ts` contains the expedition HTTP request.
 - `src/components/` contains the roster, resource display, and shared chronicle.

@@ -1,11 +1,13 @@
 import { useEffect, useState, type ReactNode } from "react";
 import { beginExpedition } from "../api";
+import { craftItem as applyCraftItem, equipTool as applyEquipTool, returnTool as applyReturnTool, toolDetails, weaponRecipe, type CraftItem } from "../equipment";
 import { advanceDay, jobLabel } from "../simulation";
 import type {
   Activity,
   ColonyState,
   JobType,
   ResourceKey,
+  ToolType,
 } from "../types";
 import { ColonyContext, type ColonyContextValue } from "./ColonyContext";
 
@@ -15,8 +17,9 @@ const initialState: ColonyState = {
     wood: 14,
     stone: 9,
     food: 18,
-    tools: 1,
+    weapons: 0,
   },
+  toolStock: { axe: 0, pickaxe: 1, mushroomSickle: 0 }, // Das bisherige Startwerkzeug wird zur Spitzhacke.
   dwarves: [
     {
       id: "dwarf-1",
@@ -25,6 +28,7 @@ const initialState: ColonyState = {
       icon: "🧔🏻",
       assignment: "mining",
       status: "working",
+      equippedTool: null,
       specialty: "mining",
     },
     {
@@ -34,6 +38,7 @@ const initialState: ColonyState = {
       icon: "🧔🏼‍♀️",
       assignment: "woodcutting",
       status: "working",
+      equippedTool: null,
       specialty: "woodcutting",
     },
     {
@@ -43,6 +48,7 @@ const initialState: ColonyState = {
       icon: "🧔🏽",
       assignment: null,
       status: "idle",
+      equippedTool: null,
     },
   ],
 };
@@ -101,13 +107,22 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
     );
   }
 
-  function craftTool() {
-    if (colony.resources.wood < 3) {
+  function equipTool(dwarfId: string, tool: ToolType) {
+    setColony((current) => applyEquipTool(current, dwarfId, tool)); // Die reine Zustandsfunktion verhindert doppeltes Ausruesten.
+  }
+
+  function returnTool(dwarfId: string) {
+    setColony((current) => applyReturnTool(current, dwarfId)); // Nur ein wirklich getragenes Werkzeug geht zurueck ins Lager.
+  }
+
+  function craftItem(item: CraftItem) {
+    const cost = item === "weapon" ? weaponRecipe : toolDetails[item].cost; // Zeigt bei Materialmangel eine passende Meldung.
+    if (colony.resources.wood < cost.wood || colony.resources.stone < cost.stone) {
       setActivities((current) => [
         {
           id: crypto.randomUUID(),
           day: colony.day,
-          message: "The forge needs more timber.",
+          message: "The forge needs more materials.",
           tone: "warning" as const,
         },
         ...current,
@@ -115,21 +130,13 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    setColony((current) => ({
-      ...current,
-      resources: {
-        ...current.resources,
-        wood: current.resources.wood - 3,
-        stone: current.resources.stone - 2,
-        tools: current.resources.tools + 1,
-      },
-    }));
+    setColony((current) => applyCraftItem(current, item)); // Die Rezeptfunktion prueft Material und Spielende erneut im aktuellen Zustand.
     setActivities((current) =>
       [
         {
           id: crypto.randomUUID(),
           day: colony.day,
-          message: "A sturdy iron tool joins the stores.",
+          message: item === "weapon" ? "A weapon joins the stores." : `A ${toolDetails[item].label.toLowerCase()} joins the stores.`,
           tone: "good" as const,
         },
         ...current,
@@ -169,6 +176,9 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
           }),
           current.resources,
         ),
+        toolStock: result.toolReward
+          ? { ...current.toolStock, [result.toolReward]: current.toolStock[result.toolReward] + 1 } // Die zufaellig geloste Werkzeugart geht einmal ins freie Lager.
+          : current.toolStock,
         dwarves: current.dwarves.map((item) =>
           item.id === dwarf.id
             ? {
@@ -183,7 +193,7 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
           {
             id: result.expeditionId,
             day: colony.day,
-            message: result.message,
+            message: result.toolReward ? `${result.message} Found: ${toolDetails[result.toolReward].label}.` : result.message, // Nennt die konkrete Beute in der Chronik.
             tone: "good" as const,
           },
           ...current,
@@ -229,7 +239,9 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
     expeditionPending,
     togglePaused: () => setPaused((value) => !value),
     assignDwarf,
-    craftTool,
+    equipTool,
+    returnTool,
+    craftItem,
     sendExpedition,
   };
 

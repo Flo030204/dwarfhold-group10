@@ -58,7 +58,7 @@ export function Layout() {
         <NavLink to="/forge">Forge</NavLink>
       </nav>
 
-      <ResourceBar resources={colony.resources} />
+      <ResourceBar resources={colony.resources} toolStock={colony.toolStock} />{/* Freie Werkzeuge werden nach Art angezeigt. */}
       {/* Die Regel steht direkt unter den Rohstoffen. */}
       <p className="food-rule" role="status">
         {/* Nach OK zeigt dieser Text die Frist, sonst die allgemeine Regel. */}

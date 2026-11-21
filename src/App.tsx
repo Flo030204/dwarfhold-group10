@@ -3,6 +3,7 @@ import { Layout } from "./pages/Layout";
 import { ColonyPage } from "./pages/ColonyPage";
 import { ForgePage } from "./pages/ForgePage";
 import { ColonyProvider } from "./state/ColonyProvider";
+// @ts-ignore CSS side-effect imports are handled by the bundler.
 import "./styles.css";
 
 const router = createBrowserRouter([
