@@ -26,7 +26,13 @@ export interface ColonyState {
     day: number; 
     resources: Resources; 
     toolStock: ToolStock; // Ausgeruestete Werkzeuge liegen nicht gleichzeitig im Lager.
-    activeExpedition?: { requestId: string; residentId: string; destination: string }; // Nur ein angenommener Reiseauftrag darf gleichzeitig laufen.
+    activeExpedition?: {
+      requestId: string;
+      residentId: string;
+      destination: string;
+      returnsOnDay: number; // Wie bei der Schmiede bestimmt ein Spieltag den fruehesten Abschluss.
+      outcome?: { kind: "success"; result: ExpeditionResult } | { kind: "failure"; message: string }; // Die API-Antwort wartet gespeichert auf den Tageswechsel.
+    }; // Nur ein angenommener Reiseauftrag darf gleichzeitig laufen.
     lastExpeditionEvent?: Activity; // Haelt die letzte bestaetigte Reisemeldung fuer die Chronik fest.
     residents: Resident[]; // Umfasst Zwerge und die einmalig beitretende Elfe.
 }

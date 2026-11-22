@@ -1,11 +1,11 @@
 import { toolTypes } from "./equipment"; // Verwendet die im Spiel bekannten Werkzeugarten.
-import { finishExpeditionFailure } from "./expedition"; // Gibt einen unterbrochenen Scout ohne Beute frei.
+import { parseExpeditionResult } from "./api"; // Prueft gespeicherte API-Ergebnisse wie neue Antworten.
 import { foodGraceDays } from "./simulation"; // Prueft die gespeicherte Hungerfrist gegen die Spielregel.
 import { elfId, forgeDays } from "./residents"; // Prueft Elfenkennung und verbleibende Schmiededauer.
 import type { Activity, ColonyState, Resident } from "./types"; // Beschreibt die wiederherstellbaren Spieldaten.
 
 export const saveKey = "dwarfhold:colony"; // Trennt den Koloniespielstand von anderen Browserdaten.
-const saveVersion = 2; // Version 2 speichert Bewohner mit ihrer Spezies und mehrtaegige Auftraege.
+const saveVersion = 3; // Version 3 speichert den Rueckkehrtag und bereits empfangene Expeditionsergebnisse.
 const jobs = ["woodcutting", "mining", "farming"]; // Legt die gueltigen gespeicherten Arbeitszuweisungen fest.
 const resourceKeys = ["wood", "stone", "food", "weapons"]; // Legt die erlaubten Lagerfelder fest.
 
@@ -31,6 +31,14 @@ function isActivity(value: unknown): value is Activity { // Prueft einen Chronik
   return isRecord(value) && typeof value.id === "string" && isCount(value.day) && typeof value.message === "string" // Verlangt Kennung, Tag und Text.
     && (value.tone === undefined || value.tone === "good" || value.tone === "warning"); // Erlaubt nur gueltige Meldungsarten.
 } // Schliesst die Chronikpruefung ab.
+
+function isExpeditionOutcome(value: unknown): boolean { // Prueft den vorgemerkten Ausgang vor dem Fortsetzen einer Reise.
+  if (!isRecord(value)) return false; // Ein Ergebnis muss als JSON-Objekt gespeichert sein.
+  if (value.kind === "failure") return typeof value.message === "string"; // Eine gescheiterte Reise braucht nur ihren Fehlertext.
+  if (value.kind !== "success") return false; // Andere Ausgangsarten sind unbekannt.
+  try { parseExpeditionResult(value.result); return true; } // Dieselbe API-Pruefung verhindert ungueltige Beute aus dem Speicher.
+  catch { return false; } // Beschaedigte Ergebnisse duerfen den Spielstand nicht fortsetzen.
+}
 
 function isResident(value: unknown, day: number): value is Resident { // Prueft Stammdaten und aktuelle Aufgabe beider Spezies.
   if (!isRecord(value) || typeof value.id !== "string" || !value.id || typeof value.name !== "string" // Verlangt Identitaet und Namen.
@@ -69,7 +77,9 @@ function isColony(value: unknown): value is ColonyState { // Prueft den gesamten
   if (active === undefined) return travelers.length === 0; // Ohne Auftrag darf kein Zwerg auf Reise stehen.
   return isRecord(active) && travelers.length === 1 && active.residentId === travelers[0].id // Verlangt genau den Scout des Auftrags.
     && typeof active.requestId === "string" && Boolean(active.requestId) // Verlangt eine verwendbare Auftragskennung.
-    && typeof active.destination === "string" && Boolean(active.destination); // Verlangt ein Reiseziel.
+    && typeof active.destination === "string" && Boolean(active.destination) // Verlangt ein Reiseziel.
+    && isCount(active.returnsOnDay) && active.returnsOnDay > 0 && active.returnsOnDay <= day + 1 // Eine Reise dauert einen Spieltag und kann auf eine spaete Antwort warten.
+    && (active.outcome === undefined || isExpeditionOutcome(active.outcome)); // Ein vorgemerkter Ausgang muss gueltig sein.
 } // Schliesst die Koloniepruefung ab.
 
 export function encodeSave(save: ColonySave): string { // Bereitet einen gueltigen Spielstand fuer den Browser vor.
@@ -86,17 +96,19 @@ function migrateLegacyColony(value: unknown): unknown { // Uebernimmt bestehende
   return { ...rest, residents, activeExpedition: active }; // Andere Vorraete, Aufgaben und Chronik bleiben erhalten.
 }
 
+function migrateTimedExpedition(value: unknown): unknown { // Ergaenzt fuer alte offene Reisen den bisher fehlenden Rueckkehrtag.
+  if (!isRecord(value) || !isRecord(value.activeExpedition) || !isCount(value.day)) return value; // Ohne Reise bleibt der Spielstand unveraendert.
+  return { ...value, activeExpedition: { ...value.activeExpedition, returnsOnDay: value.day + 1 } }; // Alte Reisen brauchen ab dem letzten gespeicherten Tag noch einen Tageswechsel.
+}
+
 export function decodeSave(raw: string): ColonySave | null { // Liest und prueft einen gespeicherten Browser-Eintrag.
   try { // Faengt beschaedigtes JSON kontrolliert ab.
     const data: unknown = JSON.parse(raw); // Behandelt gelesene Felder bis zur Pruefung als unbekannt.
-    if (!isRecord(data) || (data.version !== saveVersion && data.version !== 1)) return null; // Nur das aktuelle und das vorherige Format sind bekannt.
-    const candidate = data.version === 1 ? migrateLegacyColony(data.colony) : data.colony; // Wandelt alte Zwergenlisten vor der gemeinsamen Pruefung um.
+    if (!isRecord(data) || (data.version !== saveVersion && data.version !== 2 && data.version !== 1)) return null; // Liest beide vorherigen Formate fuer bestehende Kolonien.
+    const candidate = data.version === saveVersion ? data.colony : migrateTimedExpedition(data.version === 1 ? migrateLegacyColony(data.colony) : data.colony); // Ergaenzt alte Bewohner und offene Reisen.
     if (!isColony(candidate) // Verlangt nach der Migration einen gueltigen Spielzustand.
       || typeof data.paused !== "boolean" || !Array.isArray(data.activities) || !data.activities.every(isActivity)) return null; // Prueft auch Pause und Chronik.
-    const active = candidate.activeExpedition; // Erkennt eine durch Neuladen unterbrochene Reise.
-    const colony = active ? finishExpeditionFailure(candidate, active.requestId, // Verwendet die bestehende Rueckkehrregel ohne Lageraenderung.
-      "The expedition was canceled after reloading. The scout returned without rewards.") : candidate; // Nennt den Abbruchgrund in der Chronik.
-    return { colony, paused: data.paused, activities: data.activities.slice(0, 6) }; // Stellt Pause, Auftraege und die letzten sechs Meldungen wieder her.
+    return { colony: candidate, paused: data.paused, activities: data.activities.slice(0, 6) }; // Eine Reise bleibt wie ein Schmiedeauftrag nach Reload bestehen.
   } catch { // Fehlerhafte Daten werden wie ein ungueltiger Spielstand behandelt.
     return null; // Erlaubt der Oberflaeche, eine frische Kolonie zu starten.
   } // Schliesst die Fehlerbehandlung ab.

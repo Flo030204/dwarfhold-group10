@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { beginExpedition, parseExpeditionResult } from "./api";
 import { craftItem, equipTool } from "./equipment";
-import { acknowledgeRaid, finishExpeditionFailure, finishExpeditionSuccess, startExpedition } from "./expedition"; // Prueft die Bestaetigung beider Angriffsmeldungen.
+import { acknowledgeRaid, completeDueExpedition, finishExpeditionFailure, finishExpeditionSuccess, recordExpeditionFailure, recordExpeditionSuccess, startExpedition } from "./expedition"; // Prueft Reisetag und Angriffsmeldungen.
 import { advanceDay } from "./simulation"; // Prueft, dass die Tagesuhr waehrend beider Popups steht.
 import type { ColonyState, ExpeditionResult } from "./types";
 
@@ -23,6 +23,27 @@ const caveResult: ExpeditionResult = {
 };
 
 describe("expedition state transitions", () => {
+  it("waits one game day for an early successful report", () => {
+    const departed = startExpedition(makeState(), "d2", "old-mine", "timed");
+    expect(departed.activeExpedition?.returnsOnDay).toBe(13); // Ein Start an Tag 12 plant die Rueckkehr fuer Tag 13.
+    const reported = recordExpeditionSuccess(departed, "timed", caveResult);
+    expect(completeDueExpedition(reported)).toBe(reported); // Eine fruehe API-Antwort bringt noch keine Beute.
+    expect(reported.residents[1].status).toBe("expedition");
+    const returned = completeDueExpedition(advanceDay(reported));
+    expect(returned.residents[1].status).toBe("idle"); // Erst der Tageswechsel gibt den Scout frei.
+    expect(returned.resources.stone).toBe(13); // Die Tagesproduktion von Yrsa und die Beute werden einmal addiert.
+  });
+
+  it("waits for a late report after the return day and delays failures too", () => {
+    const departed = startExpedition(makeState(), "d2", "blocked-pass", "slow");
+    const due = advanceDay(departed);
+    expect(completeDueExpedition(due)).toBe(due); // Ohne API-Bericht bleibt der Scout auch an Tag 13 unterwegs.
+    const failed = recordExpeditionFailure(due, "slow", "Rockfall blocked the pass.");
+    const returned = completeDueExpedition(failed);
+    expect(returned.residents[1].status).toBe("idle");
+    expect(returned.resources).toEqual(due.resources); // Ein spaeter Fehler zahlt keine Beute aus.
+    expect(returned.activeExpedition).toBeUndefined();
+  });
   it("returns the tool before departure and leaves the scout unequipped afterward", () => {
     const departed = startExpedition(makeState(), "d1", "crystal-cave", "request-1");
     expect(departed.toolStock.axe).toBe(1); // Die Axt liegt schon waehrend der Reise frei im Lager.

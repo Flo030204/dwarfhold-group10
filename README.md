@@ -50,7 +50,7 @@ Open the **Forge** page, choose a recipe and an available resident. Every reside
 
 ### Expeditions
 
-The expedition panel lets you select an available resident and one destination. Sending an expedition returns any equipped tool to storage, then starts an asynchronous request to the local API. The scout is unavailable while travelling and returns without a tool. Each successful expedition is resolved once. A failed or timed-out request returns the scout without rewards. Only one expedition runs at a time. Travel continues while the day timer is paused. The first successful Crystal Cave expedition also adds Liora to the roster; later successes do not duplicate her.
+The expedition panel lets you select an available resident and one destination. Sending an expedition returns any equipped tool to storage, then starts an asynchronous request to the local API. The scout remains unavailable for **one game day** and returns without a tool. The API report is saved when it arrives, but the scout and any rewards return only after that day has passed. A failed or timed-out request also waits for the return day and grants no rewards. Pausing stops this day just as it stops forging; expeditions can still be started while paused. An unfinished trip resumes after reloading, and a saved report is not requested again. Only one expedition runs at a time. The first successful Crystal Cave expedition also adds Liora to the roster; later successes do not duplicate her.
 
 | Destination | Outcome |
 |---|---|

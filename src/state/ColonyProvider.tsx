@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react"; // Speichert vor dem naechsten sichtbaren Render und vor dem Reisestart.
 import { beginExpedition } from "../api";
 import { craftItem as applyCraftItem, equipTool as applyEquipTool, returnTool as applyReturnTool, isAvailable } from "../equipment"; // Nutzt dieselbe Verfuegbarkeit wie die Schmiede.
-import { acknowledgeRaid, finishExpeditionFailure, finishExpeditionSuccess, startExpedition } from "../expedition"; // Verwendet den gespeicherten Ablauf fuer die Angriffspopups.
+import { acknowledgeRaid, completeDueExpedition, recordExpeditionFailure, recordExpeditionSuccess, startExpedition } from "../expedition"; // Wartet mit der Rueckkehr bis zum naechsten Spieltag.
 import { decodeSave, encodeSave, saveKey, type ColonySave } from "../persistence"; // Liest und schreibt das versionierte Browserformat.
 import { canWork } from "../residents"; // Verhindert unmoegliche Arbeitszuweisungen fuer den Elfen.
 import { advanceDay, jobLabel } from "../simulation";
@@ -69,7 +69,7 @@ function loadGame(): { save: ColonySave; notice: string } { // Laedt vor dem ers
   try { // Der Browser kann selbst den Lesezugriff verweigern.
     const raw = window.localStorage.getItem(saveKey); // Liest nur den Spielstand dieser Kolonie.
     if (raw === null) return { save: newGame, notice: "" }; // Beim ersten Besuch ist noch kein Spielstand vorhanden.
-    const save = decodeSave(raw); // Prueft den Inhalt und schliesst eine unterbrochene Reise ab.
+    const save = decodeSave(raw); // Prueft den Inhalt und stellt auch eine unterbrochene Reise wieder her.
     return save ? { save, notice: "" } : { save: newGame, notice: "The saved colony was invalid or incompatible. A fresh colony has been started." }; // Meldet einen unbrauchbaren Spielstand.
   } catch { // Bei gesperrtem Speicher bleibt das Spiel nutzbar.
     return { save: newGame, notice: "The browser could not read the saved colony. A fresh colony has been started." }; // Erklaert, warum eine neue Kolonie gestartet ist.
@@ -118,16 +118,21 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const active = colony.activeExpedition;
-    if (!active || startedRequestId.current === active.requestId) return; // Erst ein angenommener Auftrag startet das Netzwerk, nie ein abgewiesener Klick.
+    if (!active || active.outcome || startedRequestId.current === active.requestId) return; // Eine gespeicherte Antwort braucht nach Reload keinen zweiten API-Aufruf.
     startedRequestId.current = active.requestId;
 
     void beginExpedition(active.residentId, active.destination) // Das API-Feld heisst weiterhin dwarfId; sein Wert darf auch eine Elfenkennung sein.
-      .then((result) => setColony((current) => finishExpeditionSuccess(current, active.requestId, result))) // Nur die noch aktive Kennung darf Beute vergeben.
-      .catch((error: unknown) => setColony((current) => finishExpeditionFailure(
+      .then((result) => setColony((current) => recordExpeditionSuccess(current, active.requestId, result))) // Die Antwort wartet gespeichert auf den Reisetag.
+      .catch((error: unknown) => setColony((current) => recordExpeditionFailure(
         current, active.requestId,
         error instanceof Error ? error.message : "The expedition was lost from view.",
-      ))); // Fehler und Zeitlimit geben nur den zugehoerigen Scout wieder frei.
+      ))); // Auch Fehler und Zeitlimit werden erst am Rueckkehrtag sichtbar.
   }, [colony.activeExpedition]);
+
+  useEffect(() => {
+    if (simulationStopped || !colony.activeExpedition?.outcome || colony.day < colony.activeExpedition.returnsOnDay) return; // Eine Pause oder ein offenes Popup haelt die Rueckkehr zurueck.
+    setColony((current) => completeDueExpedition(current)); // Prueft den aktuellen Tag erneut und rechnet den Ausgang genau einmal ab.
+  }, [colony.activeExpedition, colony.day, simulationStopped]); // Reagiert auf Tageswechsel, API-Antwort und Fortsetzen.
 
   function assignResident(id: string, assignment: JobType) {
     const resident = colony.residents.find((item) => item.id === id); // Sucht den Bewohner fuer Aufgabe und Chronik.

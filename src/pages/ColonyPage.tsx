@@ -117,11 +117,11 @@ export function ColonyPage() {
           </button>
           <p role="status">
             {colony.activeExpedition
-              ? `${colony.residents.find((resident) => resident.id === colony.activeExpedition?.residentId)?.name ?? "The scout"} is travelling to ${colony.activeExpedition.destination.replaceAll("-", " ")}.`
+              ? `${colony.residents.find((resident) => resident.id === colony.activeExpedition?.residentId)?.name ?? "The scout"} is travelling to ${colony.activeExpedition.destination.replaceAll("-", " ")}. Returns on day ${colony.activeExpedition.returnsOnDay}${colony.activeExpedition.outcome ? ". Report received." : ". Awaiting report."}`
               : "The scout returns any equipped tool to storage before leaving."}
-          </p>{/* Die laufende Reise oder die Werkzeugregel ist direkt am Aufbruch sichtbar. */}
-          <p>Returning scouts remain unequipped. Travel continues while the day timer is paused.</p>
-          <p>Reloading cancels an expedition in progress. The scout returns without rewards.</p>{/* Erklaert vor dem Aufbruch, was beim Neuladen passiert. */}
+          </p>{/* Reisetag und API-Status erklaeren, warum ein Scout noch nicht zurueck ist. */}
+          <p>Travel takes one game day. Pausing stops the return day, just like forging. Returning scouts remain unequipped.</p>{/* Die Pause gilt fuer Reise und Schmiede gleichermassen. */}
+          <p>Reloading resumes the expedition. A report already received remains saved.</p>{/* Erklaert die neue Wiederaufnahme statt eines Abbruchs. */}
         </section>
 
         <Chronicle activities={activities} />

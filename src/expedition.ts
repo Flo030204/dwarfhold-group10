@@ -26,7 +26,7 @@ export function startExpedition(state: ColonyState, residentId: string, destinat
   return {
     ...state,
     toolStock,
-    activeExpedition: { requestId, residentId, destination }, // Diese Kennung ordnet die spaetere Antwort dem angenommenen Auftrag zu.
+    activeExpedition: { requestId, residentId, destination, returnsOnDay: state.day + 1 }, // Die Reise dauert wie ein Zwergenauftrag einen Spieltag.
     residents: state.residents.map((item) => item.id === residentId
       ? { ...item, status: "expedition", equippedTool: null }
       : item), // Der Scout reist ohne Werkzeug; seine bisherige Arbeitszuweisung bleibt fuer die Rueckkehr erhalten.
@@ -35,6 +35,26 @@ export function startExpedition(state: ColonyState, residentId: string, destinat
       message: `${resident.name} departed for ${destination.replaceAll("-", " ")}. Any equipped tool was returned to storage.`,
     }, // Die Chronik bekommt nur nach einem tatsaechlich angenommenen Start eine Meldung.
   };
+}
+
+export function recordExpeditionSuccess(state: ColonyState, requestId: string, result: ExpeditionResult): ColonyState {
+  const active = state.activeExpedition; // Eine Antwort gehoert nur zum noch offenen Auftrag.
+  if (!active || active.requestId !== requestId || active.outcome) return state; // Alte und doppelte Antworten veraendern den Stand nicht.
+  return { ...state, activeExpedition: { ...active, outcome: { kind: "success", result } } }; // Speichert Beute und Zufallswerkzeug bis zum Rueckkehrtag.
+}
+
+export function recordExpeditionFailure(state: ColonyState, requestId: string, message: string): ColonyState {
+  const active = state.activeExpedition; // Auch ein Fehler muss dem aktuellen Scout zugeordnet sein.
+  if (!active || active.requestId !== requestId || active.outcome) return state; // Ein spaeter Fehler ueberschreibt keinen Erfolg.
+  return { ...state, activeExpedition: { ...active, outcome: { kind: "failure", message } } }; // Der Scout kehrt nach einem Spieltag ohne Beute zurueck.
+}
+
+export function completeDueExpedition(state: ColonyState): ColonyState {
+  const active = state.activeExpedition; // Liest Reisetag und bereits empfangenen Ausgang gemeinsam.
+  if (!active?.outcome || state.day < active.returnsOnDay) return state; // Pause haelt den Tag und damit die Rueckkehr an.
+  return active.outcome.kind === "success"
+    ? finishExpeditionSuccess(state, active.requestId, active.outcome.result) // Erst jetzt werden Beute, Elf und moeglicher Angriff verarbeitet.
+    : finishExpeditionFailure(state, active.requestId, active.outcome.message); // Ein Fehlschlag gibt den Scout erst am Rueckkehrtag frei.
 }
 
 export function finishExpeditionSuccess(state: ColonyState, requestId: string, result: ExpeditionResult): ColonyState {
