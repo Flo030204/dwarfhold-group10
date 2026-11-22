@@ -2,7 +2,7 @@
 
 Dwarfhold is a small browser-based colony and resource-management game. You are the warden of **Stonehome**, a new settlement beneath Emberpeak. Three dwarves start the colony; Liora Moonfern, an elf, joins after the first successful Crystal Cave expedition.
 
-This is a partially completed starter for the Advanced Web Development practical exam. It is already playable, but it is not yet a finished game. Investigate its existing behavior and extend it according to the [Requirements](REQUIREMENTS.md).
+This project was developed for the Advanced Web Development practical exam. See the [project requirements](REQUIREMENTS.md) for the scope.
 
 ## How the game works
 
@@ -17,7 +17,7 @@ Each dwarf can have one of these local assignments:
 | Mushroom Farm | 4 food |
 | Unassigned | No production |
 
-At the end of each day, the colony consumes one food for every resident. With the initial company of three dwarves, daily meals therefore consume three food. The Shift Ledger shows current assignments and expected production.
+At the end of each day, the colony consumes one food for every resident. With the initial company of three dwarves, daily meals therefore consume three food. The Shift Ledger shows current assignments and expected production. If the food supply reaches zero, the game pauses with a warning. After you acknowledge it, you have three more game days to restore the supply. If it is still empty at the end of the third day, the game ends.
 
 Liora can only work at the Mushroom Farm. She produces **8 food per day**, twice a dwarf's output, and no wood or stone even with an axe or pickaxe. A mushroom sickle raises her food output to 9. She consumes one food per day like every other resident.
 
@@ -31,7 +31,7 @@ The shared inventory contains:
 - **Stone**, gathered by miners.
 - **Food**, gathered by farmers and consumed by the company.
 - **Axes**, **pickaxes**, and **mushroom sickles**, crafted or discovered on expeditions. The stock display counts only unequipped tools.
-- **Weapons**, crafted at the forge and stored for future defense.
+- **Weapons**, crafted at the forge and stored to defend Stonehome against attacks.
 
 Each dwarf can carry one tool. An axe adds one wood per day while woodcutting, a pickaxe adds one stone per day while mining, and a mushroom sickle adds one food per day while farming. A tool used for a different job gives no bonus. Before an expedition, the scout returns any equipped tool to the shared stock and comes back unequipped. Tools have no durability rule.
 
@@ -50,19 +50,31 @@ Open the **Forge** page, choose a recipe and an available resident. Every reside
 
 ### Expeditions
 
-The expedition panel lets you select an available resident and one destination. Sending an expedition returns any equipped tool to storage, then starts an asynchronous request to the local API. The scout is unavailable while travelling and returns without a tool. A successful result adds the destination's rewards once; a failed or timed-out request returns the scout without rewards. Only one expedition runs at a time. Travel continues while the day timer is paused. The first successful Crystal Cave expedition also adds Liora to the roster; later successes do not duplicate her.
+The expedition panel lets you select an available resident and one destination. Sending an expedition returns any equipped tool to storage, then starts an asynchronous request to the local API. The scout is unavailable while travelling and returns without a tool. Each successful expedition is resolved once. A failed or timed-out request returns the scout without rewards. Only one expedition runs at a time. Travel continues while the day timer is paused. The first successful Crystal Cave expedition also adds Liora to the roster; later successes do not duplicate her.
 
-The starter destinations:
-
-| Destination | Current outcome |
+| Destination | Outcome |
 |---|---|
 | Crystal Cave | 8 stone and one randomly selected axe, pickaxe, or mushroom sickle |
 | The Old Mine | 12 stone and 2 wood |
 | Blocked Pass | A predictable failed expedition |
+| Spider Cave | 50 food, 20 stone, and 15 wood if Stonehome repels the attack |
 
 The short delay is deliberate, so that expedition behavior provides a realistic place to reason about promises, loading state, failures, and consistency between worker and resource state.
 
-## Current starter features
+### Spider Cave defense
+
+After a successful expedition to the Spider Cave, spiders follow the scout home and attack Stonehome. The game pauses and displays **We are under attack!**. Press **OK** to see the outcome and the resources gained or lost. The chronicle also records the result.
+
+- With **at least 12 weapons** in storage, Stonehome spends exactly **12 weapons** and keeps the entire expedition loot.
+- With **fewer than 12 weapons**, Stonehome spends every weapon it has and loses the entire expedition loot. The spiders also steal up to **20 food, 15 stone, and 15 wood** from the existing stock. Each loss is capped at the available amount.
+
+Failed expeditions trigger no attack.
+
+### Save and restore
+
+The game saves automatically in the current browser. Game time stops while the page is closed. Reloading resumes forge orders and cancels active expeditions without rewards. An invalid or incompatible save starts a fresh colony, and **Restart** replaces the previous save.
+
+## Features
 
 - Three named dwarves with assignments, status, and optional specialization.
 - One unlockable elf with double food production, distinct green styling, and seven-day forging.
@@ -75,7 +87,7 @@ The short delay is deliberate, so that expedition behavior provides a realistic 
 - A delayed local expedition API with success and failure outcomes.
 - A recent-activity chronicle.
 - Responsive fantasy-themed React interface.
-- A small Vitest suite for pure simulation behavior.
+- Vitest tests for simulation, equipment, expeditions, and save restoration.
 
 ## Run locally
 
@@ -103,7 +115,7 @@ The web app runs at `http://localhost:5174`; its API runs at `http://localhost:4
 
 The API keeps the `dwarfId` field name for compatibility; it also accepts Liora's resident ID as the value.
 
-Destinations `crystal-cave` and `old-mine` have rewards. The Crystal Cave tool type is random on each success. `blocked-pass` is the predictable failure case. Add `?fail=true` to force failure or `?latency=2500` to control delay. The default delay is two seconds.
+Destinations `crystal-cave`, `old-mine`, and `spider-cave` return rewards on success. The game resolves the Spider Cave defense when the scout comes home. The Crystal Cave tool type is random on each success. `blocked-pass` is the predictable failure case. Add `?fail=true` to force failure or `?latency=2500` to control delay. The default delay is two seconds.
 
 ## Project orientation
 
