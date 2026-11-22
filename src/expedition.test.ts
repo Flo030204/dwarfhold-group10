@@ -1,7 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { beginExpedition, parseExpeditionResult } from "./api";
 import { craftItem, equipTool } from "./equipment";
-import { finishExpeditionFailure, finishExpeditionSuccess, startExpedition } from "./expedition";
+import { acknowledgeRaid, finishExpeditionFailure, finishExpeditionSuccess, startExpedition } from "./expedition"; // Prueft die Bestaetigung beider Angriffsmeldungen.
+import { advanceDay } from "./simulation"; // Prueft, dass die Tagesuhr waehrend beider Popups steht.
 import type { ColonyState, ExpeditionResult } from "./types";
 
 function makeState(): ColonyState {
@@ -91,6 +92,59 @@ describe("expedition state transitions", () => {
     expect(returned.activeExpedition).toBeUndefined();
   });
 });
+
+describe("Spider Cave defense", () => { // Prueft die Auswirkungen einer Rueckkehr aus der Spinnenhoehle.
+  const result: ExpeditionResult = { ...caveResult, rewards: { food: 50, stone: 20, wood: 15 }, toolReward: undefined }; // Verwendet die vereinbarte Beute der Spinnenhoehle.
+  it.each([12, 15])("spends exactly 12 weapons and keeps loot with %i weapons", (weapons) => { // Testet die Abwehrgrenze und den Waffenueberschuss.
+    const state = makeState(); // Beginnt mit bekannten Vorraeten.
+    state.resources.weapons = weapons; // Legt die zu pruefende Menge Waffen ins Lager.
+    const departed = startExpedition(state, "d1", "spider-cave", "spiders"); // Startet die Reise zur Spinnenhoehle.
+    const returned = finishExpeditionSuccess(departed, "spiders", result); // Bringt den Scout mitsamt Spinnen zurueck.
+    expect(returned.resources).toEqual({ food: 59, stone: 25, wood: 25, weapons: weapons - 12 }); // Gutschrift und Waffenverbrauch geschehen zusammen.
+    expect(returned.lastExpeditionEvent?.message).toContain("defended Stonehome successfully using 12 weapons"); // Nennt die Abwehr in der Chronik.
+    expect(finishExpeditionSuccess(returned, "spiders", result)).toBe(returned); // Derselbe Angriff wird nur einmal abgerechnet.
+  }); // Schliesst die Pruefung erfolgreicher Abwehr ab.
+
+  it("spends all 11 weapons, loses the loot and raids existing stock", () => { // Prueft die Regel direkt unter der Abwehrgrenze.
+    const state = makeState(); // Beginnt mit genuegend Lagerbestand fuer die vollen Verluste.
+    state.resources = { food: 35, stone: 25, wood: 20, weapons: 11 }; // Legt die Vorraete und zu wenige Waffen fest.
+    const departed = startExpedition(state, "d1", "spider-cave", "spiders"); // Schickt den Scout zur Spinnenhoehle.
+    const returned = finishExpeditionSuccess(departed, "spiders", result); // Rechnet den verlorenen Angriff ab.
+    expect(returned.resources).toEqual({ food: 15, stone: 10, wood: 5, weapons: 0 }); // Verbraucht alle Waffen und verliert Beute sowie Teile des bisherigen Lagers.
+    expect(returned.lastExpeditionEvent?.message).toContain("Weapons spent: 11"); // Meldet die Zahl der verlorenen Waffen.
+    expect(returned.lastExpeditionEvent).toMatchObject({ tone: "warning", message: expect.stringContaining("stole 20 rations, 15 stone and 15 timber") }); // Nennt den tatsaechlichen Vorratsverlust.
+  }); // Schliesst die Pruefung eines verlorenen Angriffs ab.
+
+  it("caps losses at zero and starts the food warning", () => { // Prueft eine Kolonie mit kleinen Vorraeten.
+    const departed = startExpedition(makeState(), "d1", "spider-cave", "spiders"); // Startet ohne die zur Abwehr erforderlichen Waffen.
+    const returned = finishExpeditionSuccess(departed, "spiders", result); // Laesst die Spinnen den knappen Vorrat pluendern.
+    expect(returned.resources).toEqual({ food: 0, stone: 0, wood: 0, weapons: 0 }); // Kein Bestand wird negativ.
+    expect(returned.foodShortage).toEqual({ daysRemaining: 3, acknowledged: false }); // Dieselbe Hungerwarnung erscheint wie beim Tageswechsel.
+  }); // Schliesst die Pruefung der Mindestvorraete ab.
+
+  it("shows the warning before the result and pauses until both are acknowledged", () => { // Prueft die Reihenfolge und Dauer der Pause.
+    const state = makeState(); // Startet mit einer Kolonie, die den Angriff abwehren kann.
+    state.resources.weapons = 12; // Legt genug Waffen fuer die Verteidigung bereit.
+    const departed = startExpedition(state, "d1", "spider-cave", "spiders"); // Startet die gefaehrliche Reise.
+    const warning = finishExpeditionSuccess(departed, "spiders", result); // Oeffnet die erste Meldung nach erfolgreicher Rueckkehr.
+    expect(warning.raidPopup).toBe("attack"); // Die Warnung erscheint zuerst.
+    expect(advanceDay(warning)).toBe(warning); // Die Tagesuhr steht waehrend der Warnung.
+    const report = acknowledgeRaid(warning); // Der erste Klick oeffnet das Ergebnis.
+    expect(report.raidPopup).toBe("result"); // Der Ausgang wird erst jetzt angezeigt.
+    expect(advanceDay(report)).toBe(report); // Auch beim Ergebnis steht die Tagesuhr.
+    const resumed = acknowledgeRaid(report); // Der zweite Klick schliesst das Popup.
+    expect(resumed.resources).toEqual(warning.resources); // Die Bestaetigungen rechnen den Angriff nicht erneut ab.
+    expect(advanceDay(resumed).day).toBe(state.day + 1); // Danach kann wieder ein Spieltag vergehen.
+  }); // Schliesst den Test zur Abfolge der Popups ab.
+
+  it("does not attack after a failed expedition", () => { // Prueft den Fehlerpfad des bedrohlichen Reiseziels.
+    const departed = startExpedition(makeState(), "d1", "spider-cave", "spiders"); // Simuliert die Reise vor einem API-Fehler.
+    const returned = finishExpeditionFailure(departed, "spiders", "The path collapsed."); // Holt den Scout ohne erfolgreichen Fund zurueck.
+    expect(returned.resources).toEqual(departed.resources); // Weder Beute noch Pluenderung veraendern das Lager.
+    expect(returned.raidPopup).toBeUndefined(); // Eine fehlgeschlagene Reise oeffnet kein Angriffspopup.
+    expect(returned.lastExpeditionEvent?.message).toBe("The path collapsed."); // Zeigt den Reisefehler statt eines Angriffs an.
+  }); // Schliesst die Pruefung fehlgeschlagener Reisen ab.
+}); // Schliesst die Tests zur Spinnenhoehle ab.
 
 describe("expedition API validation", () => {
   it("accepts the current contract and rejects old or malformed rewards", () => {

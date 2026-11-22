@@ -6,6 +6,7 @@ export interface ColonyContextValue {
   paused: boolean;
   restartColony: () => void; // Ersetzt den gespeicherten Lauf beim Neustart.
   saveNotice: string; // Meldet, wenn der Browserstand nicht gelesen oder geschrieben werden konnte.
+  acknowledgeRaidPopup: () => void; // Bestaetigt die offene Angriffsmeldung.
   acknowledgeFoodShortage: () => void; // Bestaetigt das Popup und gibt die Tagesuhr wieder frei.
   activities: Activity[];
   expeditionPending: boolean;

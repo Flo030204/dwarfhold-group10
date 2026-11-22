@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react"; // Speichert vor dem naechsten sichtbaren Render und vor dem Reisestart.
 import { beginExpedition } from "../api";
 import { craftItem as applyCraftItem, equipTool as applyEquipTool, returnTool as applyReturnTool, isAvailable } from "../equipment"; // Nutzt dieselbe Verfuegbarkeit wie die Schmiede.
-import { finishExpeditionFailure, finishExpeditionSuccess, startExpedition } from "../expedition";
+import { acknowledgeRaid, finishExpeditionFailure, finishExpeditionSuccess, startExpedition } from "../expedition"; // Verwendet den gespeicherten Ablauf fuer die Angriffspopups.
 import { decodeSave, encodeSave, saveKey, type ColonySave } from "../persistence"; // Liest und schreibt das versionierte Browserformat.
 import { canWork } from "../residents"; // Verhindert unmoegliche Arbeitszuweisungen fuer den Elfen.
 import { advanceDay, jobLabel } from "../simulation";
@@ -96,7 +96,7 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
   }, [colony, paused, activities]); // Speichert nur bei Aenderungen an den gespeicherten Daten.
 
   const foodShortage = colony.foodShortage; // Liest den Stand des Essens-Countdowns.
-  const simulationStopped = paused || Boolean(foodShortage && (!foodShortage.acknowledged || foodShortage.daysRemaining === 0)); // Haelt die Uhr bei Pause, Warnung oder Game Over an.
+  const simulationStopped = paused || Boolean(colony.raidPopup) || Boolean(foodShortage && (!foodShortage.acknowledged || foodShortage.daysRemaining === 0)); // Haelt die Uhr bei Pause, Warnung oder Game Over an.
 
   useEffect(() => {
     if (simulationStopped) return; // Startet nur dann einen Timer, wenn die Kolonie weiterspielen kann.
@@ -111,10 +111,10 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const event = colony.lastExpeditionEvent;
-    if (!event || loggedEventId.current === event.id) return; // Jede bestaetigte Reisemeldung erscheint hoechstens einmal.
+    if (colony.raidPopup === "attack" || !event || loggedEventId.current === event.id) return; // Jede bestaetigte Reisemeldung erscheint hoechstens einmal.
     loggedEventId.current = event.id;
     setActivities((current) => current.some((entry) => entry.id === event.id) ? current : [event, ...current].slice(0, 6)); // Die Chronik folgt dem tatsaechlich geaenderten Spielzustand.
-  }, [colony.lastExpeditionEvent]);
+  }, [colony.lastExpeditionEvent, colony.raidPopup]); // Zeigt den Ausgang in der Chronik erst nach Bestaetigung der Warnung.
 
   useEffect(() => {
     const active = colony.activeExpedition;
@@ -186,6 +186,7 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
     saveNotice: [loadNotice, saveFailed ? "Progress could not be saved in this browser." : ""].filter(Boolean).join(" "), // Verbindet Lade- und Schreibhinweise, falls beide vorliegen.
     colony,
     paused: simulationStopped, // Zeigt auch bei der Essenswarnung eine pausierte Simulation an.
+    acknowledgeRaidPopup: () => setColony(acknowledgeRaid), // Schaltet vom Angriff zum Ergebnis und schliesst danach das Fenster.
     acknowledgeFoodShortage: () => setColony((current) => { // Bestaetigt die Warnung im aktuellen Spielstand.
       const shortage = current.foodShortage; // Liest die noch offene Warnung.
       if (!shortage || shortage.acknowledged) return current; // Ignoriert eine wiederholte Bestaetigung.

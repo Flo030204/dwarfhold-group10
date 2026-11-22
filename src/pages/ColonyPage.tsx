@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Chronicle } from "../components/Chronicle";
 import { ResidentRoster } from "../components/ResidentRoster";
+import { defenseWeapons, spiderCave, spiderRaid } from "../expedition"; // Zeigt die tatsaechlichen Regeln fuer den Spinnenangriff an.
 import { isAvailable } from "../equipment"; // Erkennt, welche Bewohner als Scout aufbrechen koennen.
 import { dailyResourceChange, jobLabel, residentProduction, workingAssignment } from "../simulation"; // Zeigt den speziesabhaengigen Ertrag aus derselben Funktion wie die Simulation.
 import { useColony } from "../state/ColonyContext";
@@ -102,10 +103,12 @@ export function ColonyPage() {
             >
               <option value="crystal-cave">Crystal Cave</option>
               <option value="old-mine">The Old Mine</option>
+              <option value={spiderCave}>Spider Cave</option>{/* Macht die gefaehrliche Hoehle als eigenes Reiseziel auswaehlbar. */}
               <option value="blocked-pass">Blocked Pass</option>
             </select>
           </label>
 
+          {destination === spiderCave && <p className="loss">A successful trip brings spiders back to Stonehome. Defending consumes {defenseWeapons} weapons. With fewer weapons, you use up all your weapons and lose all expedition loot plus up to {spiderRaid.food} rations, {spiderRaid.stone} stone and {spiderRaid.wood} timber from storage.</p>}{/* Warnt vor der Reise vor Waffenverbrauch und moeglichen Verlusten. */}
           <button
             disabled={expeditionPending || !colony.residents.some((resident) => resident.id === expeditionResident && isAvailable(resident))} // Sperrt den Aufbruch auch dann, wenn der gewaehlte Bewohner schmiedet.
             onClick={() => sendExpedition(expeditionResident, destination)}

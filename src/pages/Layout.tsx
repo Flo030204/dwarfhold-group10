@@ -4,7 +4,7 @@ import { ResourceBar } from "../components/ResourceBar";
 import { useColony } from "../state/ColonyContext";
 
 export function Layout() {
-  const { colony, paused, togglePaused, acknowledgeFoodShortage, restartColony, saveNotice } = useColony(); // Liest Spielstand, Neustart und Speicherhinweise.
+  const { colony, paused, togglePaused, acknowledgeFoodShortage, acknowledgeRaidPopup, restartColony, saveNotice } = useColony(); // Liest Spielstand, Neustart und Speicherhinweise.
   const navigate = useNavigate(); // Wechselt beim Neustart auf die Kolonieseite.
   function restart() { // Verbindet Neustart mit der Rueckkehr zur Startseite.
     restartColony(); // Ersetzt den alten Spielstand durch Startwerte.
@@ -73,7 +73,18 @@ export function Layout() {
           : `If food runs out, you have ${foodGraceDays} days to restore your food supply before the game ends.`}
       </p>{/* Schliesst die Statusanzeige fuer Essen. */}
       {/* Das Popup erscheint einmal beim Beginn jeder Knappheit. */}
-      {shortage && !shortage.acknowledged && (
+      {colony.raidPopup && (
+        <dialog key={colony.raidPopup} className="panel survival-panel" aria-labelledby="raid-title" aria-describedby="raid-message"
+          ref={(dialog) => { if (dialog && !dialog.open) dialog.showModal(); }} // Oeffnet jede Angriffsmeldung modal mit eigenem Fokus.
+          onCancel={(event) => event.preventDefault()} // Verlangt OK zum Fortsetzen.
+        >
+          {/* Die erste Meldung kuendigt den Angriff an, die zweite nennt den Ausgang. */}
+          <h2 id="raid-title">{colony.raidPopup === "attack" ? "We are under attack!" : "Attack result"}</h2>
+          <p id="raid-message">{colony.raidPopup === "attack" ? "Spiders followed the scout home and are attacking Stonehome." : colony.lastExpeditionEvent?.message}</p>{/* Zeigt den abgerechneten Ausgang erst nach der Warnung. */}
+          <button type="button" onClick={acknowledgeRaidPopup}>OK</button>{/* Bestaetigt die aktuelle Meldung. */}
+        </dialog>
+      )}{/* Ein Angriff hat Vorrang vor der Hungerwarnung. */}
+      {!colony.raidPopup && shortage && !shortage.acknowledged && (
         <dialog className="panel survival-panel" aria-labelledby="food-warning"
           ref={(dialog) => { dialog?.showModal(); }} // Oeffnet das Popup modal und blockiert Aktionen im Hintergrund.
           onCancel={(event) => event.preventDefault()} // Verhindert das Schliessen mit Escape, damit OK erforderlich bleibt.

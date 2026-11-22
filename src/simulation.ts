@@ -35,7 +35,7 @@ export function dailyResourceChange(state: ColonyState): Resources { // Berechne
 
 export function advanceDay(state: ColonyState): ColonyState { // Wendet die Tagesbilanz auf den Vorrat an.
   const shortage = state.foodShortage; // Liest eine eventuell bereits laufende Frist.
-  if (shortage && (!shortage.acknowledged || shortage.daysRemaining === 0)) return state; // Stoppt die Zeit beim Popup und bei Game Over.
+  if (state.raidPopup || (shortage && (!shortage.acknowledged || shortage.daysRemaining === 0))) return state; // Stoppt auch einen bereits eingeplanten Tageswechsel bei offenen Popups.
 
   const change = dailyResourceChange(state); // Holt dieselbe Bilanz wie in der Produktionsanzeige.
   const resources = { // Erstellt die neuen Vorraete aus Bestand und Tagesbilanz.

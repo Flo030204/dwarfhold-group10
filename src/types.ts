@@ -21,6 +21,7 @@ export interface Resident {
 }
 
 export interface ColonyState { 
+    raidPopup?: "attack" | "result"; // Speichert, welche Meldung zum letzten Spinnenangriff noch offen ist.
     foodShortage?: { daysRemaining: number; acknowledged: boolean }; // Speichert die Frist und ob das Popup bestaetigt wurde.
     day: number; 
     resources: Resources; 

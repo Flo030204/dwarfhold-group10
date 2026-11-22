@@ -9,6 +9,7 @@ let expeditionNumber = 16;
 const outcomes = {
   "crystal-cave": { rewards: { stone: 8 }, message: "The scout found a crystal seam and an abandoned tool." },
   "old-mine": { rewards: { stone: 12, wood: 2 }, message: "The old mine still holds good stone and usable supports." },
+  "spider-cave": { rewards: { food: 50, stone: 20, wood: 15 }, message: "The scout found a hidden cache in the Spider Cave." }, // Die erfolgreiche Reise liefert die Beute fuer die anschliessende Verteidigung.
 };
 
 app.use(cors()); app.use(express.json());

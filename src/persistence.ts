@@ -63,6 +63,7 @@ function isColony(value: unknown): value is ColonyState { // Prueft den gesamten
     || shortage.daysRemaining > foodGraceDays || typeof shortage.acknowledged !== "boolean" // Beschraenkt die Frist und verlangt den OK-Status.
     || (!shortage.acknowledged && shortage.daysRemaining !== foodGraceDays))) return false; // Eine offene Warnung muss noch die volle Frist haben.
   if (value.lastExpeditionEvent !== undefined && !isActivity(value.lastExpeditionEvent)) return false; // Prueft die letzte Reisemeldung.
+  if (value.raidPopup !== undefined && ((value.raidPopup !== "attack" && value.raidPopup !== "result") || !isActivity(value.lastExpeditionEvent) || value.activeExpedition !== undefined)) return false; // Laedt offene Angriffsmeldungen nur zusammen mit einem gueltigen Ausgang.
   const travelers = residents.filter((resident) => resident.status === "expedition"); // Ermittelt die zu einem Auftrag passenden Reisenden.
   const active = value.activeExpedition; // Liest den optionalen Reiseauftrag.
   if (active === undefined) return travelers.length === 0; // Ohne Auftrag darf kein Zwerg auf Reise stehen.
