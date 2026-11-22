@@ -9,9 +9,9 @@ function makeState(): ColonyState {
     day: 12,
     resources: { wood: 10, stone: 5, food: 9, weapons: 0 },
     toolStock: { axe: 0, pickaxe: 0, mushroomSickle: 0 },
-    dwarves: [
-      { id: "d1", name: "Yrsa", title: "", icon: "", assignment: "woodcutting", status: "working", equippedTool: "axe" },
-      { id: "d2", name: "Dori", title: "", icon: "", assignment: null, status: "idle", equippedTool: null },
+    residents: [
+      { id: "d1", species: "dwarf", name: "Yrsa", title: "", icon: "", assignment: "woodcutting", status: "working", equippedTool: "axe" },
+      { id: "d2", species: "dwarf", name: "Dori", title: "", icon: "", assignment: null, status: "idle", equippedTool: null },
     ],
   }; // Der erste Scout traegt bewusst ein Werkzeug, damit die Lagerregel mitgeprueft wird.
 }
@@ -25,19 +25,30 @@ describe("expedition state transitions", () => {
   it("returns the tool before departure and leaves the scout unequipped afterward", () => {
     const departed = startExpedition(makeState(), "d1", "crystal-cave", "request-1");
     expect(departed.toolStock.axe).toBe(1); // Die Axt liegt schon waehrend der Reise frei im Lager.
-    expect(departed.dwarves[0]).toMatchObject({ status: "expedition", equippedTool: null });
+    expect(departed.residents[0]).toMatchObject({ status: "expedition", equippedTool: null });
     const returned = finishExpeditionSuccess(departed, "request-1", caveResult);
-    expect(returned.dwarves[0]).toMatchObject({ status: "working", equippedTool: null }); // Die Axt wird nicht automatisch erneut ausgeruestet.
+    expect(returned.residents[0]).toMatchObject({ status: "working", equippedTool: null }); // Die Axt wird nicht automatisch erneut ausgeruestet.
     expect(returned.toolStock).toMatchObject({ axe: 1, pickaxe: 1 });
     expect(returned.resources.stone).toBe(13);
+    expect(returned.residents.at(-1)).toMatchObject({ id: "elf-liora", species: "elf", assignment: "farming" }); // Der erste erfolgreiche Hoehlengang bringt Liora mit.
+  });
+
+  it("adds the elf only after the first successful Crystal Cave trip", () => {
+    const failed = finishExpeditionFailure(startExpedition(makeState(), "d2", "crystal-cave", "failed"), "failed", "Blocked");
+    expect(failed.residents).toHaveLength(2); // Ein Fehlschlag schaltet keinen neuen Bewohner frei.
+    const mine = finishExpeditionSuccess(startExpedition(failed, "d2", "old-mine", "mine"), "mine", caveResult);
+    expect(mine.residents).toHaveLength(2); // Ein anderer Zielort zaehlt auch bei Erfolg nicht.
+    const first = finishExpeditionSuccess(startExpedition(mine, "d2", "crystal-cave", "cave"), "cave", caveResult);
+    const second = finishExpeditionSuccess(startExpedition(first, "d2", "crystal-cave", "again"), "again", caveResult);
+    expect(second.residents.filter((resident) => resident.species === "elf")).toHaveLength(1); // Weitere Hoehlenerfolge duplizieren Liora nicht.
   });
 
   it("does not reclaim a deposited tool that another dwarf equipped during the trip", () => {
     const departed = startExpedition(makeState(), "d1", "crystal-cave", "request-1");
     const shared = equipTool(departed, "d2", "axe"); // Die abgelegte Axt ist sofort fuer andere Bewohner verfuegbar.
     const returned = finishExpeditionSuccess(shared, "request-1", caveResult);
-    expect(returned.dwarves[0].equippedTool).toBeNull();
-    expect(returned.dwarves[1].equippedTool).toBe("axe"); // Die Rueckkehr nimmt Dori sein Werkzeug nicht weg.
+    expect(returned.residents[0].equippedTool).toBeNull();
+    expect(returned.residents[1].equippedTool).toBe("axe"); // Die Rueckkehr nimmt Dori sein Werkzeug nicht weg.
     expect(returned.toolStock.axe).toBe(0);
   });
 
@@ -54,7 +65,7 @@ describe("expedition state transitions", () => {
   it("returns the scout after failure without undoing the tool deposit or granting rewards", () => {
     const departed = startExpedition(makeState(), "d1", "blocked-pass", "request-1");
     const failed = finishExpeditionFailure(departed, "request-1", "Rockfall blocked the pass.");
-    expect(failed.dwarves[0]).toMatchObject({ status: "working", equippedTool: null });
+    expect(failed.residents[0]).toMatchObject({ status: "working", equippedTool: null });
     expect(failed.toolStock.axe).toBe(1); // Die vor dem Aufbruch abgelegte Axt bleibt im Lager.
     expect(failed.resources).toEqual(departed.resources); // Ein Fehlschlag vergibt keine Rohstoffe.
     expect(failed.activeExpedition).toBeUndefined();
@@ -66,7 +77,7 @@ describe("expedition state transitions", () => {
     const second = startExpedition(returned, "d2", "old-mine", "request-2");
     expect(finishExpeditionSuccess(second, "request-1", caveResult)).toBe(second); // Die alte Antwort darf den zweiten Scout nicht freigeben.
     expect(finishExpeditionFailure(second, "request-1", "Late failure")).toBe(second);
-    expect(second.dwarves[1].status).toBe("expedition");
+    expect(second.residents[1].status).toBe("expedition");
   });
 
   it("ignores rewards after game over and refuses a crafting dwarf", () => {

@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { Chronicle } from "../components/Chronicle";
-import { DwarfRoster } from "../components/DwarfRoster";
-import { isAvailable, toolDetails } from "../equipment"; // Erkennt, welche Zwerge als Scout aufbrechen koennen.
-import { dailyResourceChange, jobLabel, production, workingAssignment } from "../simulation"; // Verwendet dieselbe Produktion und Verfuegbarkeit wie der Tageswechsel.
+import { ResidentRoster } from "../components/ResidentRoster";
+import { isAvailable } from "../equipment"; // Erkennt, welche Bewohner als Scout aufbrechen koennen.
+import { dailyResourceChange, jobLabel, residentProduction, workingAssignment } from "../simulation"; // Zeigt den speziesabhaengigen Ertrag aus derselben Funktion wie die Simulation.
 import { useColony } from "../state/ColonyContext";
 
 export function ColonyPage() {
@@ -10,19 +10,19 @@ export function ColonyPage() {
     colony,
     activities,
     expeditionPending,
-    assignDwarf,
+    assignResident,
     equipTool,
     returnTool,
     sendExpedition,
   } = useColony();
   const [destination, setDestination] = useState("crystal-cave");
-  const [expeditionDwarf, setExpeditionDwarf] = useState("dwarf-3");
+  const [expeditionResident, setExpeditionResident] = useState("dwarf-3");
 
   const dailyOutput = dailyResourceChange(colony); // Zeigt die tatsaechliche Tagesbilanz an.
 
   return (
     <div className="dashboard">
-      <DwarfRoster dwarves={colony.dwarves} toolStock={colony.toolStock} onAssign={assignDwarf} onEquip={equipTool} onReturn={returnTool} />
+      <ResidentRoster residents={colony.residents} toolStock={colony.toolStock} onAssign={assignResident} onEquip={equipTool} onReturn={returnTool} />
 
       <section className="center-stack">
         <section className="panel production">
@@ -47,16 +47,15 @@ export function ColonyPage() {
                 <h3>{jobLabel(job)}</h3>
                 <p>
                   {
-                    colony.dwarves.filter(
-                      (dwarf) => workingAssignment(dwarf) === job, // Zaehlt nur Zwerge, die diesen Job gerade ausueben.
+                    colony.residents.filter(
+                      (resident) => workingAssignment(resident) === job, // Zaehlt nur Bewohner, die diesen Job gerade ausueben.
                     ).length
                   }{" "}
                   assigned
                 </p>
-                <strong>+{colony.dwarves
-                  .filter((dwarf) => workingAssignment(dwarf) === job)
-                  .reduce((sum, dwarf) => sum + (Object.values(production[job])[0] ?? 0)
-                    + (dwarf.equippedTool && toolDetails[dwarf.equippedTool].job === job ? 1 : 0), 0)} / day</strong>{/* Zeigt den wirklichen Gesamtertrag inklusive passender Werkzeuge. */}
+                <strong>+{colony.residents
+                  .filter((resident) => workingAssignment(resident) === job)
+                  .reduce((sum, resident) => sum + (Object.values(residentProduction(resident))[0] ?? 0), 0)} / day</strong>{/* Bezieht den Elfenbonus und passende Werkzeuge aus der gemeinsamen Produktionsregel. */}
               </article>
             ))}
           </div>
@@ -84,12 +83,12 @@ export function ColonyPage() {
           <label>
             Scout
             <select
-              value={expeditionDwarf}
-              onChange={(event) => setExpeditionDwarf(event.target.value)}
+              value={expeditionResident}
+              onChange={(event) => setExpeditionResident(event.target.value)}
             >
-              {colony.dwarves.map((dwarf) => (
-                <option key={dwarf.id} value={dwarf.id} disabled={!isAvailable(dwarf)}>
-                  {dwarf.name}{!isAvailable(dwarf) ? ` (${dwarf.status})` : ""}{/* Zeigt den Grund, wenn ein Zwerg nicht aufbrechen kann. */}
+              {colony.residents.map((resident) => (
+                <option key={resident.id} value={resident.id} disabled={!isAvailable(resident)}>
+                  {resident.name}{!isAvailable(resident) ? ` (${resident.status})` : ""}{/* Zeigt den Grund, wenn ein Bewohner nicht aufbrechen kann. */}
                 </option>
               ))}
             </select>
@@ -108,14 +107,14 @@ export function ColonyPage() {
           </label>
 
           <button
-            disabled={expeditionPending || !colony.dwarves.some((dwarf) => dwarf.id === expeditionDwarf && isAvailable(dwarf))} // Sperrt den Aufbruch auch dann, wenn der bereits gewaehlte Zwerg gerade schmiedet.
-            onClick={() => sendExpedition(expeditionDwarf, destination)}
+            disabled={expeditionPending || !colony.residents.some((resident) => resident.id === expeditionResident && isAvailable(resident))} // Sperrt den Aufbruch auch dann, wenn der gewaehlte Bewohner schmiedet.
+            onClick={() => sendExpedition(expeditionResident, destination)}
           >
             {expeditionPending ? "Beyond the gate…" : "Send expedition"}
           </button>
           <p role="status">
             {colony.activeExpedition
-              ? `${colony.dwarves.find((dwarf) => dwarf.id === colony.activeExpedition?.dwarfId)?.name ?? "The scout"} is travelling to ${colony.activeExpedition.destination.replaceAll("-", " ")}.`
+              ? `${colony.residents.find((resident) => resident.id === colony.activeExpedition?.residentId)?.name ?? "The scout"} is travelling to ${colony.activeExpedition.destination.replaceAll("-", " ")}.`
               : "The scout returns any equipped tool to storage before leaving."}
           </p>{/* Die laufende Reise oder die Werkzeugregel ist direkt am Aufbruch sichtbar. */}
           <p>Returning scouts remain unequipped. Travel continues while the day timer is paused.</p>

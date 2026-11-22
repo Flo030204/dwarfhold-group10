@@ -3,6 +3,7 @@ import { craftItem } from "./equipment"; // Erstellt einen echten Schmiedeauftra
 import { finishExpeditionSuccess, startExpedition } from "./expedition"; // Prueft die Rueckkehr und spaete Beute nach dem Laden.
 import { decodeSave, encodeSave, type ColonySave } from "./persistence"; // Prueft den gleichen Speicherweg wie der Browser.
 import { advanceDay } from "./simulation"; // Laesst einen wiederhergestellten Auftrag regulaer fertig werden.
+import { elfResident } from "./residents"; // Verwendet dieselbe Elfenkennung wie das Spiel.
 
 function newSave(): ColonySave { // Erstellt pro Test eine unabhaengige Kolonie.
   return { // Legt einen kleinen gueltigen Spielstand an.
@@ -13,12 +14,49 @@ function newSave(): ColonySave { // Erstellt pro Test eine unabhaengige Kolonie.
       resources: { wood: 10, stone: 10, food: 0, weapons: 0 }, // Laesst genug Material fuer den Schmiedeauftrag uebrig.
       foodShortage: { daysRemaining: 2, acknowledged: true }, // Simuliert eine bereits bestaetigte Hungerfrist.
       toolStock: { axe: 0, pickaxe: 0, mushroomSickle: 0 }, // Das einzige Werkzeug ist bereits ausgeruestet.
-      dwarves: [{ id: "d1", name: "Brom", title: "", icon: "", assignment: "mining", status: "working", equippedTool: "pickaxe" }], // Verbindet Aufgabe und Ausruestung.
+      residents: [{ id: "d1", species: "dwarf", name: "Brom", title: "", icon: "", assignment: "mining", status: "working", equippedTool: "pickaxe" }], // Verbindet Aufgabe und Ausruestung.
     }, // Schliesst die Kolonie ab.
   }; // Gibt den gueltigen Spielstand zurueck.
 } // Schliesst die Testdaten ab.
 
 describe("colony save and restore", () => { // Gruppiert die Wiederherstellungstests.
+  it("restores an elf's unfinished seven-day order", () => {
+    const save = newSave();
+    save.colony.resources.food = 100; // Verhindert, dass Hunger die Zeitpruefung unterbricht.
+    save.colony.foodShortage = undefined;
+    save.colony.residents.push({ ...elfResident });
+    save.colony = advanceDay(advanceDay(craftItem(save.colony, elfResident.id, "weapon")));
+    const restored = decodeSave(encodeSave(save));
+    expect(restored?.colony.residents[1].forgeTask).toEqual({ item: "weapon", completesOnDay: 19 }); // Nach zwei Tagen bleiben noch fuenf.
+    if (!restored) throw new Error("Expected the elf order to be restored");
+    let current = restored.colony;
+    for (let day = 0; day < 5; day += 1) current = advanceDay(current);
+    expect(current.resources.weapons).toBe(1); // Der Auftrag wird nach Reload genau einmal geliefert.
+    expect(current.residents[1].status).toBe("working");
+  });
+
+  it("migrates a version-one dwarf save without losing its colony", () => {
+    const save = newSave();
+    const { residents, ...rest } = save.colony;
+    const oldSave = { version: 1, colony: { ...rest, dwarves: residents.map(({ species: _species, ...dwarf }) => dwarf) }, paused: save.paused, activities: save.activities }; // Baut das tatsaechliche alte Speicherformat nach.
+    const restored = decodeSave(JSON.stringify(oldSave));
+    expect(restored?.colony.residents[0]).toMatchObject({ id: "d1", species: "dwarf", equippedTool: "pickaxe" });
+    expect(restored?.colony.resources).toEqual(save.colony.resources); // Vorraete und alte Werkzeuge bleiben erhalten.
+  });
+
+  it("cancels a travelling dwarf from a version-one save after migration", () => {
+    const save = newSave();
+    save.colony = startExpedition(save.colony, "d1", "old-mine", "legacy-trip");
+    const { residents, activeExpedition, ...rest } = save.colony;
+    const oldSave = { version: 1, colony: {
+      ...rest,
+      dwarves: residents.map(({ species: _species, ...dwarf }) => dwarf),
+      activeExpedition: { requestId: activeExpedition?.requestId, dwarfId: activeExpedition?.residentId, destination: activeExpedition?.destination },
+    }, paused: save.paused, activities: save.activities }; // Stellt die alten Feldnamen auch fuer einen offenen Reiseauftrag her.
+    const restored = decodeSave(JSON.stringify(oldSave));
+    expect(restored?.colony.activeExpedition).toBeUndefined();
+    expect(restored?.colony.residents[0]).toMatchObject({ status: "working", equippedTool: null }); // Die Migration gibt den Scout ohne doppelte Ausruestung frei.
+  });
   it("restores the saved colony and completes a forge order without paying twice", () => { // Prueft die Schmiede nach einem Reload.
     const save = newSave(); // Startet mit Hungerfrist, Pause und Chronik.
     save.colony = craftItem(save.colony, "d1", "axe"); // Zieht Zutaten ab und startet den Auftrag.
@@ -28,7 +66,7 @@ describe("colony save and restore", () => { // Gruppiert die Wiederherstellungst
     const nextDay = advanceDay(restored.colony); // Schliesst den Auftrag regulaer ab.
     expect(nextDay.resources).toMatchObject({ wood: 7, stone: 8 }); // Die Zutaten werden beim Abschluss nicht erneut abgezogen.
     expect(nextDay.toolStock.axe).toBe(1); // Die fertige Axt liegt genau einmal im Lager.
-    expect(nextDay.dwarves[0].status).toBe("working"); // Der Schmied nimmt seine alte Arbeit wieder auf.
+    expect(nextDay.residents[0].status).toBe("working"); // Der Schmied nimmt seine alte Arbeit wieder auf.
   }); // Schliesst den Test zum Schmiedeauftrag ab.
 
   it("cancels travel on reload and ignores a late expedition reward", () => { // Prueft den gewaehlten Umgang mit unterbrochenen Reisen.
@@ -39,7 +77,7 @@ describe("colony save and restore", () => { // Gruppiert die Wiederherstellungst
     expect(restored.colony.activeExpedition).toBeUndefined(); // Startet nach Reload keine Anfrage fuer diese Reise.
     expect(restored.colony.resources).toEqual(save.colony.resources); // Laesst den Materialbestand unveraendert.
     expect(restored.colony.toolStock.pickaxe).toBe(1); // Die beim Aufbruch abgelegte Spitzhacke bleibt einmal im Lager.
-    expect(restored.colony.dwarves[0]).toMatchObject({ assignment: "mining", status: "working", equippedTool: null }); // Gibt den Scout fuer seine bisherige Arbeit frei.
+    expect(restored.colony.residents[0]).toMatchObject({ assignment: "mining", status: "working", equippedTool: null }); // Gibt den Scout fuer seine bisherige Arbeit frei.
     expect(restored.colony.lastExpeditionEvent?.message).toContain("canceled after reloading"); // Hinterlegt die Meldung fuer die Chronik.
     expect(finishExpeditionSuccess(restored.colony, "trip", { expeditionId: "trip", status: "completed", rewards: { stone: 4 }, message: "Found stone." })).toBe(restored.colony); // Ignoriert Beute aus dem stornierten Auftrag.
   }); // Schliesst den Test zur Expedition ab.
@@ -48,7 +86,7 @@ describe("colony save and restore", () => { // Gruppiert die Wiederherstellungst
     const save = newSave(); // Erstellt ansonsten gueltige Speicherdaten.
     expect(decodeSave("{")).toBeNull(); // Lehnt abgeschnittenes JSON ab.
     expect(decodeSave(JSON.stringify({ version: 999, ...save }))).toBeNull(); // Lehnt inkompatible Versionen ab.
-    save.colony.dwarves[0].status = "crafting"; // Erzeugt absichtlich einen Schmied ohne Auftrag.
+    save.colony.residents[0].status = "crafting"; // Erzeugt absichtlich einen Schmied ohne Auftrag.
     expect(decodeSave(encodeSave(save))).toBeNull(); // Laesst ungueltige Zustandskombinationen nicht ins Spiel.
   }); // Schliesst die Fehlerpruefung ab.
 }); // Schliesst die Tests zur Speicherung ab.

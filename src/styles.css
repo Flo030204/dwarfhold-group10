@@ -23,3 +23,9 @@
 @media (max-width: 900px) { .forge-layout .forge { flex-direction: column; } } /* Schichtet die Schmiede auf schmalen Fenstern. */
 
 .main-nav{display:flex;gap:6px;margin-top:12px;border-bottom:1px solid #4e3d2a}.main-nav a{padding:8px 14px;color:#9e8566;text-decoration:none;font:600 12px Barlow Condensed;letter-spacing:.12em;text-transform:uppercase;border-bottom:2px solid transparent}.main-nav a:hover{color:#eadfca}.main-nav a.active{color:#e2a84f;border-bottom-color:#e2a84f}.forge-layout{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(280px,.6fr);gap:15px;align-items:start}.forge-layout .forge{min-height:140px}@media(max-width:900px){.forge-layout{grid-template-columns:1fr}}
+
+.dwarf.elf { background: linear-gradient(105deg, #17352e, #15251f 60%, #191510); border-left: 3px solid #62c9aa; } /* Gruen und Tuerkis heben die Elfe von den braunen Startzwergen ab. */
+.dwarf.elf .portrait { background: linear-gradient(145deg, #256852, #153b32); border-color: #64bda2; } /* Der Avatar traegt dieselbe Speziesfarbe. */
+.dwarf.elf h3, .dwarf.elf .tool-effect, .dwarf.elf .elf-rule { color: #a3e8ce; } /* Name und Regeln bleiben auf dunklem Grund gut lesbar. */
+.species-badge { margin-left: 5px; padding: 2px 4px; border: 1px solid #62c9aa; color: #b5f5de; font: 700 9px Barlow Condensed; letter-spacing: .08em; vertical-align: middle; } /* Ein Textbadge kennzeichnet die Spezies unabhaengig von Farbe. */
+.dwarf p.elf-rule { margin: 5px 0 0; font-size: 11px; color: #a3e8ce; } /* Zeigt die sieben Schmiedetage direkt im Charakterprofil. */

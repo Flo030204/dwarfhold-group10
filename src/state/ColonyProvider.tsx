@@ -3,6 +3,7 @@ import { beginExpedition } from "../api";
 import { craftItem as applyCraftItem, equipTool as applyEquipTool, returnTool as applyReturnTool, isAvailable } from "../equipment"; // Nutzt dieselbe Verfuegbarkeit wie die Schmiede.
 import { finishExpeditionFailure, finishExpeditionSuccess, startExpedition } from "../expedition";
 import { decodeSave, encodeSave, saveKey, type ColonySave } from "../persistence"; // Liest und schreibt das versionierte Browserformat.
+import { canWork } from "../residents"; // Verhindert unmoegliche Arbeitszuweisungen fuer den Elfen.
 import { advanceDay, jobLabel } from "../simulation";
 import type {
   Activity,
@@ -22,9 +23,10 @@ const initialState: ColonyState = {
     weapons: 0,
   },
   toolStock: { axe: 0, pickaxe: 1, mushroomSickle: 0 }, // Das bisherige Startwerkzeug wird zur Spitzhacke.
-  dwarves: [
+  residents: [
     {
       id: "dwarf-1",
+      species: "dwarf", // Alle drei Startbewohner behalten die bisherigen Zwergenregeln.
       name: "Bromli Copperkeg",
       title: "Hold Warden",
       icon: "🧔🏻",
@@ -35,6 +37,7 @@ const initialState: ColonyState = {
     },
     {
       id: "dwarf-2",
+      species: "dwarf",
       name: "Yrsa Flintbraid",
       title: "Trail Scout",
       icon: "🧔🏼‍♀️",
@@ -45,6 +48,7 @@ const initialState: ColonyState = {
     },
     {
       id: "dwarf-3",
+      species: "dwarf",
       name: "Dori Ashmantle",
       title: "Stone Singer",
       icon: "🧔🏽",
@@ -117,7 +121,7 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
     if (!active || startedRequestId.current === active.requestId) return; // Erst ein angenommener Auftrag startet das Netzwerk, nie ein abgewiesener Klick.
     startedRequestId.current = active.requestId;
 
-    void beginExpedition(active.dwarfId, active.destination)
+    void beginExpedition(active.residentId, active.destination) // Das API-Feld heisst weiterhin dwarfId; sein Wert darf auch eine Elfenkennung sein.
       .then((result) => setColony((current) => finishExpeditionSuccess(current, active.requestId, result))) // Nur die noch aktive Kennung darf Beute vergeben.
       .catch((error: unknown) => setColony((current) => finishExpeditionFailure(
         current, active.requestId,
@@ -125,19 +129,19 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
       ))); // Fehler und Zeitlimit geben nur den zugehoerigen Scout wieder frei.
   }, [colony.activeExpedition]);
 
-  function assignDwarf(id: string, assignment: JobType) {
-    const dwarf = colony.dwarves.find((item) => item.id === id); // Sucht den Zwerg fuer Aufgabe und Chronik.
-    if (!dwarf || !isAvailable(dwarf)) return; // Beschaeftigte Zwerge koennen ihre Aufgabe nicht wechseln.
+  function assignResident(id: string, assignment: JobType) {
+    const resident = colony.residents.find((item) => item.id === id); // Sucht den Bewohner fuer Aufgabe und Chronik.
+    if (!resident || !isAvailable(resident) || !canWork(resident, assignment)) return; // Elfen duerfen weder Holz noch Stein abbauen.
     setColony((current) => ({
       ...current,
-      dwarves: current.dwarves.map((dwarf) =>
-        dwarf.id === id && isAvailable(dwarf) // Prueft die Verfuegbarkeit auch im aktuellen Zustand.
+      residents: current.residents.map((item) =>
+        item.id === id && isAvailable(item) && canWork(item, assignment) // Prueft die Speziesregel auch im aktuellen Zustand.
           ? {
-              ...dwarf,
+              ...item,
               assignment,
               status: assignment ? "working" : "idle",
             }
-          : dwarf,
+          : item,
       ),
     }));
 
@@ -146,28 +150,28 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
         {
           id: crypto.randomUUID(),
           day: colony.day,
-          message: `${dwarf?.name ?? "A dwarf"} assigned to ${jobLabel(assignment)}.`,
+          message: `${resident.name} assigned to ${jobLabel(assignment)}.`,
         },
         ...current,
       ].slice(0, 6),
     );
   }
 
-  function equipTool(dwarfId: string, tool: ToolType) {
-    setColony((current) => applyEquipTool(current, dwarfId, tool)); // Die reine Zustandsfunktion verhindert doppeltes Ausruesten.
+  function equipTool(residentId: string, tool: ToolType) {
+    setColony((current) => applyEquipTool(current, residentId, tool)); // Die reine Zustandsfunktion verhindert doppeltes Ausruesten.
   }
 
-  function returnTool(dwarfId: string) {
-    setColony((current) => applyReturnTool(current, dwarfId)); // Nur ein wirklich getragenes Werkzeug geht zurueck ins Lager.
+  function returnTool(residentId: string) {
+    setColony((current) => applyReturnTool(current, residentId)); // Nur ein wirklich getragenes Werkzeug geht zurueck ins Lager.
   }
 
-  function craftItem(dwarfId: string, item: CraftItem) { // Gibt Schmied und Rezept an die Spielregel weiter.
-    setColony((current) => applyCraftItem(current, dwarfId, item)); // Prueft Zwerg und Materialien gemeinsam im neuesten Zustand.
+  function craftItem(residentId: string, item: CraftItem) { // Gibt Schmied und Rezept an die Spielregel weiter.
+    setColony((current) => applyCraftItem(current, residentId, item)); // Prueft Bewohner und Materialien gemeinsam im neuesten Zustand.
   } // Schliesst die Aktion der Schmiedeseite ab.
 
-  function sendExpedition(dwarfId: string, destination: string) {
+  function sendExpedition(residentId: string, destination: string) {
     const requestId = crypto.randomUUID(); // Ein schneller zweiter Klick erhaelt eine andere Kennung und wird im aktuellen Zustand abgewiesen.
-    setColony((current) => startExpedition(current, dwarfId, destination, requestId)); // Werkzeugrueckgabe und Aufbruch geschehen gemeinsam.
+    setColony((current) => startExpedition(current, residentId, destination, requestId)); // Werkzeugrueckgabe und Aufbruch geschehen gemeinsam.
   }
 
   function restartColony() { // Ersetzt den alten Lauf durch eine frische Kolonie.
@@ -190,7 +194,7 @@ export function ColonyProvider({ children }: { children: ReactNode }) {
     activities,
     expeditionPending: Boolean(colony.activeExpedition), // Die Schaltflaeche und der Scout beziehen sich auf denselben Auftrag.
     togglePaused: () => setPaused((value) => !value),
-    assignDwarf,
+    assignResident,
     equipTool,
     returnTool,
     craftItem,

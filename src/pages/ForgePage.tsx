@@ -1,14 +1,15 @@
 import { useState } from "react"; // Merkt sich den in der Schmiede ausgewaehlten Zwerg.
 import { Chronicle } from "../components/Chronicle";
 import { craftLabel, isAvailable, toolDetails, toolTypes, weaponRecipe } from "../equipment"; // Teilt Rezepte und Verfuegbarkeit mit der Simulation.
+import { forgeDays } from "../residents"; // Zeigt dieselben Dauerregeln wie beim Auftragsstart.
 import { useColony } from "../state/ColonyContext";
 
 export function ForgePage() {
   const { colony, activities, craftItem } = useColony();
   const [smithId, setSmithId] = useState(""); // Verlangt eine bewusste Auswahl des Schmieds.
-  const smith = colony.dwarves.find((dwarf) => dwarf.id === smithId); // Liest die aktuelle Verfuegbarkeit der Auswahl.
+  const smith = colony.residents.find((resident) => resident.id === smithId); // Liest die aktuelle Verfuegbarkeit der Auswahl.
   const canForge = Boolean(smith && isAvailable(smith)); // Sperrt alle Rezepte ohne verfuegbaren Schmied.
-  const smithsAtWork = colony.dwarves.filter((dwarf) => dwarf.forgeTask); // Sammelt die laufenden Auftraege fuer die Anzeige.
+  const smithsAtWork = colony.residents.filter((resident) => resident.forgeTask); // Sammelt die laufenden Auftraege fuer die Anzeige.
 
   return (
     <div className="forge-layout">
@@ -17,18 +18,19 @@ export function ForgePage() {
           <small>EMBER FORGE</small>
           <h2>Forge equipment</h2>
           <p>Each tool improves one matching job by one resource per day.</p>
-          <p>Forging takes one game day. The smith's regular job pauses until then.</p>{/* Erklaert Dauer und Auswirkung auf die Tagesarbeit. */}
+          <p>Dwarves forge in one game day; elves need seven. All residents can forge every recipe.</p>{/* Erklaert die beiden Dauerregeln und die freie Rezeptwahl. */}
+          {smith && <p>{smith.name} needs {forgeDays[smith.species]} game {forgeDays[smith.species] === 1 ? "day" : "days"} per order. Regular work pauses while forging.</p>}{/* Die Auswahl zeigt die konkrete Wartezeit vor dem Klick. */}
           <p>Forge orders resume after reloading. Materials are paid only when the order starts.</p>{/* Erklaert die Wiederaufnahme des laufenden Auftrags. */}
           <label className="forge-smith">
-            {/* Die Auswahl bestimmt, welcher Zwerg das Rezept ausfuehrt. */}
+            {/* Die Auswahl bestimmt, welcher Bewohner das Rezept ausfuehrt. */}
             Smith
             <select value={smithId} onChange={(event) => setSmithId(event.target.value)}>
               {/* Ohne Auswahl bleiben die Rezepte gesperrt. */}
-              <option value="">Choose a dwarf</option>
+              <option value="">Choose a smith</option>
               {/* Beschaeftigte Zwerge bleiben sichtbar und sind nicht auswaehlbar. */}
-              {colony.dwarves.map((dwarf) => (
-                <option key={dwarf.id} value={dwarf.id} disabled={!isAvailable(dwarf)}>
-                  {dwarf.name}{!isAvailable(dwarf) ? ` (${dwarf.status})` : ""}{/* Nennt den Grund fuer die Sperre. */}
+              {colony.residents.map((resident) => (
+                <option key={resident.id} value={resident.id} disabled={!isAvailable(resident)}>
+                  {resident.name}{!isAvailable(resident) ? ` (${resident.status})` : ""}{/* Nennt den Grund fuer die Sperre. */}
                 </option>
               ))}
             </select>
@@ -39,7 +41,7 @@ export function ForgePage() {
               <h3>In progress</h3>{/* Markiert die noch nicht ausgelieferten Rezepte. */}
               <ul>
                 {smithsAtWork.map(({ id, name, forgeTask }) => forgeTask && (
-                  <li key={id}>{name} is forging {craftLabel(forgeTask.item)}. Ready on day {forgeTask.completesOnDay}.</li>
+                  <li key={id}>{name} is forging {craftLabel(forgeTask.item)}. Ready on day {forgeTask.completesOnDay} ({forgeTask.completesOnDay - colony.day} days left).</li>
                 ))}{/* Jeder Eintrag beschreibt genau einen laufenden Auftrag. */}
               </ul>
             </div>

@@ -10,11 +10,11 @@ export interface ColonyContextValue {
   activities: Activity[];
   expeditionPending: boolean;
   togglePaused: () => void;
-  assignDwarf: (id: string, assignment: JobType) => void;
-  equipTool: (dwarfId: string, tool: ToolType) => void; // Ruft die Bestandspruefung beim Ausruesten auf.
-  returnTool: (dwarfId: string) => void; // Legt das getragene Werkzeug wieder ins Lager.
-  craftItem: (dwarfId: string, item: CraftItem) => void; // Startet das Rezept mit dem ausgewaehlten Zwerg.
-  sendExpedition: (dwarfId: string, destination: string) => void; // Der Aufbruch speichert zuerst den Auftrag; die API startet danach.
+  assignResident: (id: string, assignment: JobType) => void; // Gilt fuer Zwerge und die Elfe.
+  equipTool: (residentId: string, tool: ToolType) => void; // Ruft die Bestandspruefung beim Ausruesten auf.
+  returnTool: (residentId: string) => void; // Legt das getragene Werkzeug wieder ins Lager.
+  craftItem: (residentId: string, item: CraftItem) => void; // Startet das Rezept mit dem ausgewaehlten Bewohner.
+  sendExpedition: (residentId: string, destination: string) => void; // Der Aufbruch speichert zuerst den Auftrag; die API startet danach.
 }
 
 export const ColonyContext = createContext<ColonyContextValue | null>(null);

@@ -1,5 +1,6 @@
-import type { ColonyState, Dwarf, JobType, Resources } from "./types"; // Dwarf wird fuer die Pruefung der Verfuegbarkeit gebraucht.
+import type { ColonyState, JobType, Resident, Resources } from "./types";
 import { completeForgeTasks, toolDetails } from "./equipment"; // Die Schmiede liefert ihre Produkte am Ende des Tageswechsels aus.
+import { canWork } from "./residents";
 
 export const production: Record<Exclude<JobType, null>, Partial<Resources>> = {
   woodcutting: { wood: 3 }, mining: { stone: 2 }, farming: { food: 4 },
@@ -7,22 +8,26 @@ export const production: Record<Exclude<JobType, null>, Partial<Resources>> = {
 
 export const foodGraceDays = 3; // Legt die Anzahl weiterer Spieltage bei leeren Vorraeten fest.
 
-export function workingAssignment(dwarf: Dwarf): JobType { // Ermittelt die Aufgabe, die heute Rohstoffe produziert.
-  return dwarf.status === "working" ? dwarf.assignment : null; // Nur vor Ort arbeitende Zwerge produzieren.
+export function workingAssignment(resident: Resident): JobType { // Ermittelt die Aufgabe, die heute Rohstoffe produziert.
+  return resident.status === "working" && canWork(resident, resident.assignment) ? resident.assignment : null; // Unmoegliche Elfenjobs und beschaeftigte Bewohner erzeugen nichts.
 } // Beendet die Abfrage der aktiven Aufgabe.
 
+export function residentProduction(resident: Resident): Partial<Resources> {
+  const assignment = workingAssignment(resident); // Wendet Status und Speziesregel vor jedem Bonus an.
+  if (!assignment) return {}; // Ein Elf mit Holz- oder Steinjob bleibt auch mit Werkzeug bei null.
+  const [resource, amount] = Object.entries(production[assignment])[0] as [keyof Resources, number];
+  const speciesAmount = resident.species === "elf" ? amount * 2 : amount; // 100 Prozent mehr Nahrung bedeuten acht statt vier Einheiten.
+  const toolBonus = resident.equippedTool && toolDetails[resident.equippedTool].job === assignment ? 1 : 0; // Die Pilzsichel addiert danach genau eine Einheit.
+  return { [resource]: speciesAmount + toolBonus }; // Dieselbe Zahl wird fuer Tageswechsel und UI verwendet.
+}
+
 export function dailyResourceChange(state: ColonyState): Resources { // Berechnet Produktion und Mahlzeiten fuer Simulation und Anzeige.
-  const resources: Resources = { wood: 0, stone: 0, food: -state.dwarves.length, weapons: 0 }; // Jeder Zwerg braucht eine Ration, auch auf Expedition.
+  const resources: Resources = { wood: 0, stone: 0, food: -state.residents.length, weapons: 0 }; // Auch der Elf verbraucht taeglich eine Ration.
 
-  state.dwarves.forEach((dwarf) => {
-    const assignment = workingAssignment(dwarf); // Prueft, ob der Zwerg gerade seiner lokalen Arbeit nachgeht.
-    if (!assignment) return; // Ueberspringt Zwerge ohne aktive Arbeit.
-
-    const output = production[assignment]; // Liest die Tagesproduktion fuer diese Aufgabe.
-    const [resource, amount] = Object.entries(output)[0] as [keyof Resources, number]; // Jeder Job erzeugt genau eine Rohstoffart.
-    const toolBonus = dwarf.equippedTool && toolDetails[dwarf.equippedTool].job === assignment ? 1 : 0; // Nur das passende Werkzeug gibt einen Zusatzpunkt.
-    resources[resource] += amount + toolBonus; // Unpassende oder reisende Zwerge bekommen keinen Werkzeugbonus.
-
+  state.residents.forEach((resident) => {
+    Object.entries(residentProduction(resident)).forEach(([resource, amount]) => {
+      resources[resource as keyof Resources] += amount ?? 0; // Addiert nur den fuer diese Spezies tatsaechlich moeglichen Ertrag.
+    });
   });
 
   return resources; // Gibt die Nettoveraenderung aller Rohstoffe zurueck.

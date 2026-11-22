@@ -1,6 +1,6 @@
 # Dwarfhold
 
-Dwarfhold is a small browser-based colony and resource-management game. You are the warden of **Stonehome**, a new settlement beneath Emberpeak. Your three dwarves gather supplies, eat from the shared food stores, forge equipment, and explore locations beyond the hold.
+Dwarfhold is a small browser-based colony and resource-management game. You are the warden of **Stonehome**, a new settlement beneath Emberpeak. Three dwarves start the colony; Liora Moonfern, an elf, joins after the first successful Crystal Cave expedition.
 
 This is a partially completed starter for the Advanced Web Development practical exam. It is already playable, but it is not yet a finished game. Investigate its existing behavior and extend it according to the [Requirements](REQUIREMENTS.md).
 
@@ -17,7 +17,9 @@ Each dwarf can have one of these local assignments:
 | Mushroom Farm | 4 food |
 | Unassigned | No production |
 
-At the end of each day, the colony consumes one food for every dwarf. With the initial company of three dwarves, daily meals therefore consume three food. The Shift Ledger shows current assignments and expected production.
+At the end of each day, the colony consumes one food for every resident. With the initial company of three dwarves, daily meals therefore consume three food. The Shift Ledger shows current assignments and expected production.
+
+Liora can only work at the Mushroom Farm. She produces **8 food per day**, twice a dwarf's output, and no wood or stone even with an axe or pickaxe. A mushroom sickle raises her food output to 9. She consumes one food per day like every other resident.
 
 Use the assignment dropdown beside a dwarf to change their work. A changed assignment affects subsequent simulation days.
 
@@ -44,11 +46,11 @@ The forge offers these recipes:
 2 wood + 4 stone -> 1 weapon
 ```
 
-Open the **Forge** page, choose a recipe and an available dwarf. The materials are deducted when the task begins, and the item enters the shared inventory at the next day change. The dwarf cannot work locally or travel while crafting.
+Open the **Forge** page, choose a recipe and an available resident. Every resident can make all four recipes. Materials are deducted when the task begins. A dwarf finishes after **one game day**; Liora finishes after **seven game days**. The smith cannot work locally or travel while crafting, and unfinished orders continue after reloading.
 
 ### Expeditions
 
-The expedition panel lets you select an available dwarf and one destination. Sending an expedition returns any equipped tool to storage, then starts an asynchronous request to the local API. The dwarf is unavailable while travelling and returns without a tool. A successful result adds the destination's rewards once; a failed or timed-out request returns the dwarf without rewards. Only one expedition runs at a time. Travel continues while the day timer is paused.
+The expedition panel lets you select an available resident and one destination. Sending an expedition returns any equipped tool to storage, then starts an asynchronous request to the local API. The scout is unavailable while travelling and returns without a tool. A successful result adds the destination's rewards once; a failed or timed-out request returns the scout without rewards. Only one expedition runs at a time. Travel continues while the day timer is paused. The first successful Crystal Cave expedition also adds Liora to the roster; later successes do not duplicate her.
 
 The starter destinations:
 
@@ -63,6 +65,7 @@ The short delay is deliberate, so that expedition behavior provides a realistic 
 ## Current starter features
 
 - Three named dwarves with assignments, status, and optional specialization.
+- One unlockable elf with double food production, distinct green styling, and seven-day forging.
 - Woodcutting, mining, and farming jobs.
 - An automatic eight-second simulation tick with pause/resume.
 - Shared wood, stone, food, weapon, and typed tool inventories.
@@ -98,6 +101,8 @@ The web app runs at `http://localhost:5174`; its API runs at `http://localhost:4
 - `GET /api/health`
 - `POST /api/expeditions` with `{ "dwarfId": "dwarf-2", "destination": "crystal-cave" }`
 
+The API keeps the `dwarfId` field name for compatibility; it also accepts Liora's resident ID as the value.
+
 Destinations `crystal-cave` and `old-mine` have rewards. The Crystal Cave tool type is random on each success. `blocked-pass` is the predictable failure case. Add `?fail=true` to force failure or `?latency=2500` to control delay. The default delay is two seconds.
 
 ## Project orientation
@@ -108,6 +113,7 @@ Destinations `crystal-cave` and `old-mine` have rewards. The Crystal Cave tool t
 - `src/pages/` contains the shared layout, colony page, and forge page.
 - `src/simulation.ts` contains the production table and daily simulation transition.
 - `src/equipment.ts` contains tool compatibility, recipes, and inventory-safe equipment actions.
+- `src/residents.ts` contains species-specific work and forging rules.
 - `src/expedition.ts` contains the checked departure, success, and failure transitions.
 - `src/types.ts` defines workers, jobs, statuses, resources, and activity records.
 - `src/api.ts` contains the expedition HTTP request.
